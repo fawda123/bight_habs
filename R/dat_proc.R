@@ -11,28 +11,28 @@ prj <- 4326 # wgs84
 
 # master data proc --------------------------------------------------------
 
-dat <- read_excel('data/raw/DA retro_Carondata_March 2019.xlsx', sheet = 'Master List', 
+wqdat <- read_excel('data/raw/DA retro_Carondata_March 2019.xlsx', sheet = 'Master List', 
                   col_types = c('numeric', 'numeric', 'text', 'date', 'text', 'text', 'numeric', 'text', 'text', 'text',
                                 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 
                                 'numeric', 'numeric', 'numeric', 'text'),
                   range = 'A1:V4575') %>% 
-  dplyr::select(-`Serial number`, -`Project ID`, -`Station ID`, -`Already Published?`) %>% 
+  dplyr::select(-`Serial number`, -`Project ID`, -`Already Published?`) %>% 
   mutate(
     Lat = gsub('N$', '', Lat),
     Lat = case_when(
-      grepl('\\s', Lat) ~ strsplit(Lat, '\\s') %>% map(., function(x) paste0(x[1], gsub('^\\0\\.', '', as.character(as.numeric(x[2])/60)))) %>% unlist,
+      grepl('\\s', Lat) ~ strsplit(Lat, '\\s') %>% map(., function(x) paste0(x[1], gsub('^0\\.', '.', as.character(as.numeric(x[2])/60)))) %>% unlist,
       T ~ Lat
-    ), 
+    ),
     Lat = as.numeric(Lat),
     Long= gsub('W$', '', Long),
     Long = case_when(
-      grepl('\\s', Long) ~ strsplit(Long, '\\s') %>% map(., function(x) paste0(x[1], gsub('^\\0\\.', '', as.character(as.numeric(x[2])/60)))) %>% unlist,
+      grepl('\\s', Long) ~ strsplit(Long, '\\s') %>% map(., function(x) paste0(x[1], gsub('^0\\.', '.', as.character(as.numeric(x[2])/60)))) %>% unlist,
       T ~ Long
     ),
-    Long = as.numeric(Long), 
-    Long = ifelse(Long > 0, -1 * Long, Long)
+    Long = as.numeric(Long),
+    Long = ifelse(Long > 0, -1 * Long, Long), 
+    Month = month(`Full Date`, label = T, abbr = F),
+    Year = year(`Full Date`)
   ) 
 
-datgeo <- dat %>% 
-  filter(!is.na(Lat)) %>% 
-  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
+save(wqdat, file = 'data/wqdat.RData', compress = 'xz')

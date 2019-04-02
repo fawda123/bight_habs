@@ -4,16 +4,154 @@ output:
     code_folding: hide
 ---
 
-```{r message = F, warning = F, results = 'hide',echo=F}
+# Exploration of DA Bight dataset {.tabsetet}
+
+```{r message = F, warning = F, results = 'hide'}
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/')
 
 library(tidyverse)
-
+library(sf)
+library(mapview)
 prj <- 4326 # wgs84
 
 source('R/funcs.R')
 
-data(chmdatsum)
-data(chmdatraw)
-data(biodat)
+pbase <- theme_bw(base_family = 'serif', base_size = 14) +
+  theme(
+    strip.background = element_blank(), 
+    legend.position = 'top', 
+    legend.title = element_blank()
+  )
+
+data(wqdat)
+
+wqdat <- wqdat %>% 
+  select(Year, Month, `Full Date`, `Station ID`, Depth, `Depth Category`, `Lat`, `Long`, `DA (ng/mL)`, `PN cells (cells/L)`, `Chl a (ug/L)`)# %>% 
+  # rename(
+  #   chla = `Chl a (ug/L)`, 
+  #   da = `DA (ng/mL)`, 
+  #   pn = `PN cells (cells/L)`
+  # ) %>% 
+  # gather('var', 'val', `Chl a (ug/L)`, `DA (ng/mL)`, `PN cells (cells/L)`)
+sqdatgeo <- wqdat %>% 
+  filter(!is.na(Lat)) %>% 
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
 ```
+
+## Plots
+
+Locations with lat/lon, `r nrow(sqdatgeo)` records out of `r nrow(wqdat)`.
+```{r}
+mapview(sqdatgeo)
+```
+
+Locations with lat/lon, summarized by numbers of years sampled:
+```{r}
+sqdatgeosum <- wqdat %>% 
+  filter(!is.na(Lat)) %>%
+  group_by(`Station ID`) %>% 
+  nest %>% 
+  mutate(
+    nyrs = purrr::map(data, function(x) length(unique(x$Year))),
+    Lat = purrr::map(data, function(x) mean(x$Lat, na.rm = T)), 
+    Long = purrr::map(data, function(x) mean(x$Long, na.rm = T))
+  ) %>% 
+  dplyr::select(-data) %>% 
+  unnest %>% 
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
+
+mapview(sqdatgeosum, zcol = 'nyrs', layer.name = "Years sampled")
+```
+
+Observations by depth category:
+```{r}
+ggplot(wqdat, aes(x = `Depth Category`)) + 
+  geom_bar() + 
+  xlab('Depth category') + 
+  coord_flip() + 
+  # facet_wrap(~var, ncol = 3)
+  pbase
+```
+
+Observations by year, depth category:
+```{r, fig.height = 8, fig.width = 8}
+ggplot(wqdat, aes(x = factor(Year))) + 
+  geom_bar() + 
+  xlab('Year') + 
+  coord_flip() + 
+  facet_wrap(~`Depth Category`) +
+  pbase
+```
+
+Observations by month, depth category:
+```{r, fig.height = 8, fig.width = 8}
+ggplot(wqdat, aes(x = Month)) + 
+  geom_bar() + 
+  coord_flip() + 
+  facet_wrap(~`Depth Category`) +
+  pbase
+```
+
+Station record length (top 30):
+```{r}
+toplo <- wqdat %>% 
+  group_by(`Station ID`) %>% 
+  summarise(cnt = n()) %>% 
+  arrange(-cnt) %>% 
+  .[1:30, ] %>% 
+  ungroup %>% 
+  mutate(`Station ID` = factor(`Station ID`, levels = rev(`Station ID`)))
+
+ggplot(toplo, aes(x = `Station ID`, y = cnt)) +
+  geom_bar(stat = 'identity') + 
+  xlab('Station ID') +
+  ylab('# of records') +
+  coord_flip() + 
+  pbase 
+  
+```
+
+Stations, top 30, by year:
+```{r, fig.height = 14, fig.width = 12}
+toplo2 <- wqdat %>% 
+  filter(`Station ID` %in% toplo$`Station ID`) %>% 
+  group_by(`Station ID`, Year) %>% 
+  summarise(cnt = n()) %>% 
+  ungroup %>% 
+  mutate(`Station ID` = factor(`Station ID`, levels = levels(toplo$`Station ID`)))
+         
+ggplot(toplo2, aes(x = `Station ID`, y = cnt)) +
+  geom_bar(stat = 'identity') + 
+  xlab('Station ID') +
+  ylab('# of records') +
+  facet_wrap(~Year) + 
+  coord_flip() + 
+  pbase 
+  
+```
+
+Stations, top 30, by month:
+```{r, fig.height = 12, fig.width = 12}
+toplo3 <- wqdat %>% 
+  filter(`Station ID` %in% toplo$`Station ID`) %>% 
+  group_by(`Station ID`, Month) %>% 
+  summarise(cnt = n()) %>% 
+  ungroup %>% 
+  mutate(`Station ID` = factor(`Station ID`, levels = levels(toplo$`Station ID`)))
+         
+ggplot(toplo3, aes(x = `Station ID`, y = cnt)) +
+  geom_bar(stat = 'identity') + 
+  xlab('Station ID') +
+  ylab('# of records') +
+  facet_wrap(~Month) + 
+  coord_flip() + 
+  pbase 
+  
+```
+
+## Questions
+
+* How do we want to define spatial units?
+* should we focus on key stations?
+* What is our DA endpoint?  
+* What time frames do we want to consider (e.g., specific months)?
