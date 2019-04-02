@@ -35,14 +35,15 @@ wqdat <- wqdat %>%
   # gather('var', 'val', `Chl a (ug/L)`, `DA (ng/mL)`, `PN cells (cells/L)`)
 sqdatgeo <- wqdat %>% 
   filter(!is.na(Lat)) %>% 
-  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj) %>% 
+  mutate(dpcat = factor(`Depth Category`))
 ```
 
 ## Plots
 
 Locations with lat/lon, `r nrow(sqdatgeo)` records out of `r nrow(wqdat)`.
 ```{r}
-mapview(sqdatgeo)
+mapview(sqdatgeo, zcol = 'dpcat', layer.name = 'Depth category')
 ```
 
 Locations with lat/lon, summarized by numbers of years sampled:
