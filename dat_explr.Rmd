@@ -1,0 +1,19 @@
+---
+output: 
+  bookdown::html_document2:
+    code_folding: hide
+---
+
+```{r message = F, warning = F, results = 'hide',echo=F}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/')
+
+library(tidyverse)
+
+prj <- 4326 # wgs84
+
+source('R/funcs.R')
+
+data(chmdatsum)
+data(chmdatraw)
+data(biodat)
+```
