@@ -4,7 +4,7 @@ output:
     code_folding: hide
 ---
 
-# Exploration of DA Bight dataset {.tabsetet}
+# Exploration of DA Bight dataset {.tabset}
 
 ```{r message = F, warning = F, results = 'hide'}
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/')
