@@ -41,6 +41,10 @@ sqdatgeo <- wqdat %>%
 
 ## Plots
 
+```{r}
+DT::datatable(wqdat)
+```
+
 Locations with lat/lon, `r nrow(sqdatgeo)` records out of `r nrow(wqdat)`.
 ```{r}
 mapview(sqdatgeo, zcol = 'dpcat', layer.name = 'Depth category')
