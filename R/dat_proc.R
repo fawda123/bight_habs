@@ -16,7 +16,7 @@ wqdat <- read_excel('data/raw/DA retro_Carondata_March 2019.xlsx', sheet = 'Mast
                                 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 
                                 'numeric', 'numeric', 'numeric', 'text'),
                   range = 'A1:V4575') %>% 
-  dplyr::select(-`Serial number`, -`Project ID`, -`Already Published?`) %>% 
+  dplyr::select(-`Serial number`, -`Already Published?`) %>% 
   mutate(
     Lat = gsub('N$', '', Lat),
     Lat = case_when(

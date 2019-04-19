@@ -12,6 +12,9 @@ knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/')
 library(tidyverse)
 library(sf)
 library(mapview)
+library(patchwork)
+library(lubridate)
+
 prj <- 4326 # wgs84
 
 source('R/funcs.R')
@@ -25,34 +28,49 @@ pbase <- theme_bw(base_family = 'serif', base_size = 14) +
 
 data(wqdat)
 
-wqdat <- wqdat %>% 
-  select(Year, Month, `Full Date`, `Station ID`, Depth, `Depth Category`, `Lat`, `Long`, `DA (ng/mL)`, `PN cells (cells/L)`, `Chl a (ug/L)`)# %>% 
-  # rename(
-  #   chla = `Chl a (ug/L)`, 
-  #   da = `DA (ng/mL)`, 
-  #   pn = `PN cells (cells/L)`
-  # ) %>% 
-  # gather('var', 'val', `Chl a (ug/L)`, `DA (ng/mL)`, `PN cells (cells/L)`)
-sqdatgeo <- wqdat %>% 
+# all wq data as sf
+wqdatgeo <- wqdat %>% 
   filter(!is.na(Lat)) %>% 
-  st_as_sf(., coords = c('Long', 'Lat'), crs = prj) %>% 
-  mutate(dpcat = factor(`Depth Category`))
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
+
+# caron dataset
+jsdat <- wqdat %>% 
+  select(Year, Month, `Full Date`, `Project ID`, `Station ID`, Depth, `Depth Category`, `Lat`, `Long`, `DA (ng/mL)`, `PN cells (cells/L)`, `Chl a (ug/L)`, Temp, Salinity, `NO2+NO3`) %>% 
+  filter(grepl('^Schnetzer|^ECOHAB|^B08|^SCCOOS|^OCSC', `Project ID`)) %>% 
+  filter(!grepl('^Santa\\sMonica\\sPier|^Newport', `Station ID`)) %>% 
+  filter(Long > -118.83 & Long < -117.7) %>% 
+  filter(!is.na(Lat)) %>% 
+  rename(
+    chla = `Chl a (ug/L)`,
+    da = `DA (ng/mL)`,
+    pn = `PN cells (cells/L)`,
+    temp = Temp, 
+    sal = Salinity, 
+    nitrogen = `NO2+NO3`
+  ) %>% 
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
+
+# newport and santa monica ts
+tsdat <- wqdat %>% 
+  select(Year, Month, `Full Date`, `Project ID`, `Station ID`, Depth, `Depth Category`, `Lat`, `Long`, `DA (ng/mL)`, `PN cells (cells/L)`, `Chl a (ug/L)`, Temp, Salinity, `NO2+NO3`) %>% 
+  filter(grepl('^Santa\\sMonica\\sPier|^Newport', `Station ID`)) %>% 
+  rename(
+    chla = `Chl a (ug/L)`,
+    da = `DA (ng/mL)`,
+    pn = `PN cells (cells/L)`,
+    temp = Temp, 
+    sal = Salinity, 
+    nitrogen = `NO2+NO3`
+  ) %>% 
+  filter(!is.na(Lat)) %>% 
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
 ```
 
 ## Plots
 
-```{r}
-DT::datatable(wqdat)
-```
-
-Locations with lat/lon, `r nrow(sqdatgeo)` records out of `r nrow(wqdat)`.
-```{r}
-mapview(sqdatgeo, zcol = 'dpcat', layer.name = 'Depth category')
-```
-
 Locations with lat/lon, summarized by numbers of years sampled:
 ```{r}
-sqdatgeosum <- wqdat %>% 
+wqdatgeosum <- wqdat %>% 
   filter(!is.na(Lat)) %>%
   group_by(`Station ID`) %>% 
   nest %>% 
@@ -65,98 +83,67 @@ sqdatgeosum <- wqdat %>%
   unnest %>% 
   st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
 
-mapview(sqdatgeosum, zcol = 'nyrs', layer.name = "Years sampled")
+mapview(wqdatgeosum, zcol = 'nyrs', layer.name = "Years sampled")
 ```
 
-Observations by depth category:
+Caron dataset:
 ```{r}
-ggplot(wqdat, aes(x = `Depth Category`)) + 
-  geom_bar() + 
-  xlab('Depth category') + 
-  coord_flip() + 
-  # facet_wrap(~var, ncol = 3)
-  pbase
+mapview(jsdat)
 ```
 
-Observations by year, depth category:
-```{r, fig.height = 8, fig.width = 8}
-ggplot(wqdat, aes(x = factor(Year))) + 
-  geom_bar() + 
-  xlab('Year') + 
-  coord_flip() + 
-  facet_wrap(~`Depth Category`) +
-  pbase
+Time series data, Newport Beach and Santa Monica Pier:
+```{r, eval = F}
+toplo <- tsdat %>% 
+  st_set_geometry(NULL) %>% 
+  dplyr::select(`Full Date`, `Station ID`, da, pn, chla) %>%
+  mutate(
+    da = 1000*da, 
+    da.edit = ifelse(da > 400, 401, da),
+    text.da = ifelse(da > 400, 'Y', 'N'),
+    zero.da = ifelse(da > 0, 'N', 'Y')
+  )
+dalabs <- filter(toplo, text.da == 'Y')
+
+# point scales
+scls <- c(1, 12)
+
+leglab <- expression(paste('Domoic acid (ng ', L^-1, ')'))
+brks <- c(0, 50, 100, 150, 200, 400)
+labs <- c('>0-50', '50-100', '100-150', '150-200', '200-400', '>400')
+
+p1 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) + 
+  geom_point(aes(size = da.edit, shape = zero.da, colour = da.edit), alpha = 0.8) + 
+  geom_label(data = dalabs, aes(label = floor(da)), size = 4, alpha = 0.6) +
+  theme_bw(base_family = 'serif') + 
+  theme(axis.title = element_blank()) +
+    scale_size_continuous(leglab,
+    breaks = brks,
+    range = scls, 
+    labels = labs
+    ) + 
+  scale_colour_gradientn(leglab, 
+    element_text('test'),
+    colours = c('gray50', 'grey15'),
+    breaks = brks,
+    labels = labs
+    ) + 
+  scale_shape_manual(values = c(16, 1), guide = F) +
+  guides(colour = guide_legend(), size = guide_legend()) +
+  ggtitle('(a) Domoic Acid (DA)') 
+
+p2 <- ggplot(toplo, aes(x = date, y = `Station ID`, size = pn)) + 
+  geom_point(alpha = 0.6) + 
+  scale_size('Psuedo-nitzschia (cells/L)', trans = 'log10') + 
+  theme_bw(base_family = 'serif') + 
+  theme(axis.title = element_blank())
+
+p3 <- ggplot(toplo, aes(x = date, y = `Station ID`, size = chla)) + 
+  geom_point(alpha = 0.6) + 
+  scale_size('Chl-a (ug/L)', trans = 'log10', range = c(0.2, 2)) + 
+  theme_bw(base_family = 'serif') + 
+  theme(axis.title = element_blank())
+
+
+p1 + p2 + p3 + plot_layout(ncol = 1)
 ```
 
-Observations by month, depth category:
-```{r, fig.height = 8, fig.width = 8}
-ggplot(wqdat, aes(x = Month)) + 
-  geom_bar() + 
-  coord_flip() + 
-  facet_wrap(~`Depth Category`) +
-  pbase
-```
-
-Station record length (top 30):
-```{r}
-toplo <- wqdat %>% 
-  group_by(`Station ID`) %>% 
-  summarise(cnt = n()) %>% 
-  arrange(-cnt) %>% 
-  .[1:30, ] %>% 
-  ungroup %>% 
-  mutate(`Station ID` = factor(`Station ID`, levels = rev(`Station ID`)))
-
-ggplot(toplo, aes(x = `Station ID`, y = cnt)) +
-  geom_bar(stat = 'identity') + 
-  xlab('Station ID') +
-  ylab('# of records') +
-  coord_flip() + 
-  pbase 
-  
-```
-
-Stations, top 30, by year:
-```{r, fig.height = 14, fig.width = 12}
-toplo2 <- wqdat %>% 
-  filter(`Station ID` %in% toplo$`Station ID`) %>% 
-  group_by(`Station ID`, Year) %>% 
-  summarise(cnt = n()) %>% 
-  ungroup %>% 
-  mutate(`Station ID` = factor(`Station ID`, levels = levels(toplo$`Station ID`)))
-         
-ggplot(toplo2, aes(x = `Station ID`, y = cnt)) +
-  geom_bar(stat = 'identity') + 
-  xlab('Station ID') +
-  ylab('# of records') +
-  facet_wrap(~Year) + 
-  coord_flip() + 
-  pbase 
-  
-```
-
-Stations, top 30, by month:
-```{r, fig.height = 12, fig.width = 12}
-toplo3 <- wqdat %>% 
-  filter(`Station ID` %in% toplo$`Station ID`) %>% 
-  group_by(`Station ID`, Month) %>% 
-  summarise(cnt = n()) %>% 
-  ungroup %>% 
-  mutate(`Station ID` = factor(`Station ID`, levels = levels(toplo$`Station ID`)))
-         
-ggplot(toplo3, aes(x = `Station ID`, y = cnt)) +
-  geom_bar(stat = 'identity') + 
-  xlab('Station ID') +
-  ylab('# of records') +
-  facet_wrap(~Month) + 
-  coord_flip() + 
-  pbase 
-  
-```
-
-## Questions
-
-* How do we want to define spatial units?
-* should we focus on key stations?
-* What is our DA endpoint?  
-* What time frames do we want to consider (e.g., specific months)?
