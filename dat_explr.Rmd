@@ -14,6 +14,7 @@ library(sf)
 library(mapview)
 library(patchwork)
 library(lubridate)
+library(ggrepel)
 
 prj <- 4326 # wgs84
 
@@ -92,28 +93,42 @@ mapview(jsdat)
 ```
 
 Time series data, Newport Beach and Santa Monica Pier:
-```{r, eval = F}
+```{r, fig.height = 7, fig.width = 12}
 toplo <- tsdat %>% 
   st_set_geometry(NULL) %>% 
   dplyr::select(`Full Date`, `Station ID`, da, pn, chla) %>%
   mutate(
-    da = 1000*da, 
+    da = 1000*da, # mg/L
     da.edit = ifelse(da > 400, 401, da),
     text.da = ifelse(da > 400, 'Y', 'N'),
-    zero.da = ifelse(da > 0, 'N', 'Y')
+    zero.da = ifelse(da > 0, 'N', 'Y'), 
+    pn = pn / 1000, # cells/ml
+    pn.edit = ifelse(pn > 400, 401, pn),
+    text.pn = ifelse(pn > 400, 'Y', 'N'),
+    zero.pn = ifelse(pn > 0, 'N', 'Y'),
+    chla.edit = ifelse(chla > 20, 21, chla),
+    text.chla = ifelse(chla > 20, 'Y', 'N'),
+    zero.chla = ifelse(chla > 0, 'N', 'Y')
   )
 dalabs <- filter(toplo, text.da == 'Y')
+pnlabs <- filter(toplo, text.pn == 'Y')
+chlalabs <- filter(toplo, text.chla == 'Y')
 
 # point scales
 scls <- c(1, 12)
 
-leglab <- expression(paste('Domoic acid (ng ', L^-1, ')'))
+leglab <- expression(paste('conc. (ng ', mL^-1, ')'))
 brks <- c(0, 50, 100, 150, 200, 400)
 labs <- c('>0-50', '50-100', '100-150', '150-200', '200-400', '>400')
-
 p1 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) + 
   geom_point(aes(size = da.edit, shape = zero.da, colour = da.edit), alpha = 0.8) + 
-  geom_label(data = dalabs, aes(label = floor(da)), size = 4, alpha = 0.6) +
+  geom_label_repel(data = dalabs, aes(label = floor(da)), 
+    box.padding = 1,
+    point.padding = NA, 
+    size = 4, alpha = 0.7, 
+    min.segment.length = 0,
+    colour = 'tomato1'
+    ) +
   theme_bw(base_family = 'serif') + 
   theme(axis.title = element_blank()) +
     scale_size_continuous(leglab,
@@ -131,19 +146,77 @@ p1 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) +
   guides(colour = guide_legend(), size = guide_legend()) +
   ggtitle('(a) Domoic Acid (DA)') 
 
-p2 <- ggplot(toplo, aes(x = date, y = `Station ID`, size = pn)) + 
-  geom_point(alpha = 0.6) + 
-  scale_size('Psuedo-nitzschia (cells/L)', trans = 'log10') + 
+leglab <- expression(paste('cells (', L^-1, ')'))
+brks <- c(0, 50, 100, 150, 200, 400)
+labs <- c('>0-50', '50-100', '100-150', '150-200', '200-400', '>400')
+p2 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) + 
+  geom_point(aes(size = pn.edit, shape = zero.pn, colour = pn.edit), alpha = 0.8) + 
+  geom_label_repel(data = pnlabs, aes(label = floor(pn)), 
+    box.padding = 1,
+    point.padding = NA, 
+    size = 4, alpha = 0.7, 
+    min.segment.length = 0,
+    colour = 'tomato1'
+    ) +
   theme_bw(base_family = 'serif') + 
-  theme(axis.title = element_blank())
+  theme(axis.title = element_blank()) +
+    scale_size_continuous(leglab,
+    breaks = brks,
+    range = scls, 
+    labels = labs
+    ) + 
+  scale_colour_gradientn(leglab, 
+    element_text('test'),
+    colours = c('gray50', 'grey15'),
+    breaks = brks,
+    labels = labs
+    ) + 
+  scale_shape_manual(values = c(16, 1), guide = F) +
+  guides(colour = guide_legend(), size = guide_legend()) +
+  ggtitle('(b) Pseudo-nitzschia') 
 
-p3 <- ggplot(toplo, aes(x = date, y = `Station ID`, size = chla)) + 
-  geom_point(alpha = 0.6) + 
-  scale_size('Chl-a (ug/L)', trans = 'log10', range = c(0.2, 2)) + 
+leglab <- expression(paste('conc. (ug ', L^-1, ')'))
+brks <- c(0, 1, 5, 10, 15, 20)
+labs <- c('>0-1', '1-5', '5-10', '10-15', '15-20', '>20')
+p3 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) + 
+  geom_point(aes(size = chla.edit, shape = zero.chla, colour = chla.edit), alpha = 0.8) + 
+  geom_label_repel(data = chlalabs, aes(label = floor(chla)), 
+    box.padding = 1,
+    point.padding = NA, 
+    size = 4, alpha = 0.7, 
+    min.segment.length = 0,
+    colour = 'tomato1'
+    ) +
   theme_bw(base_family = 'serif') + 
-  theme(axis.title = element_blank())
-
+  theme(axis.title = element_blank()) +
+    scale_size_continuous(leglab,
+    breaks = brks,
+    range = scls, 
+    labels = labs
+    ) + 
+  scale_colour_gradientn(leglab, 
+    element_text('test'),
+    colours = c('gray50', 'grey15'),
+    breaks = brks,
+    labels = labs
+    ) + 
+  scale_shape_manual(values = c(16, 1), guide = F) +
+  guides(colour = guide_legend(), size = guide_legend()) +
+  ggtitle('(c) Chlorophyll-a') 
 
 p1 + p2 + p3 + plot_layout(ncol = 1)
+```
+
+```{r, eval = F}
+ggplot(tsdat, aes(x = chla, y = pn)) + 
+  geom_point() + 
+  scale_x_log10() + 
+  scale_y_log10()
+
+ggplot(tsdat, aes(x = chla, y = da)) + 
+  geom_point() + 
+  scale_x_log10() + 
+  scale_y_log10()
+
 ```
 
