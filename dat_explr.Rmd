@@ -15,6 +15,7 @@ library(mapview)
 library(patchwork)
 library(lubridate)
 library(ggrepel)
+library(Cprob)
 
 prj <- 4326 # wgs84
 
@@ -131,7 +132,7 @@ p1 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) +
     ) +
   theme_bw(base_family = 'serif') + 
   theme(axis.title = element_blank()) +
-    scale_size_continuous(leglab,
+  scale_size_continuous(leglab,
     breaks = brks,
     range = scls, 
     labels = labs
@@ -207,16 +208,65 @@ p3 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) +
 p1 + p2 + p3 + plot_layout(ncol = 1)
 ```
 
+Logistic regression of likelihood of seeing DA with chl, all Bight stations:
+```{r, eval = T, fig.height = 4, fig.width = 9}
+
+toplo1 <- jsdat %>% 
+  mutate(
+    dapa = ifelse(da > 0, 1, 0)
+  ) %>% 
+  filter(!is.na(chla) & !is.na(da))
+
+leglab <- expression(paste('Domoic acid\nconc. (ng ', L^-1, ')'))
+
+p1 <- ggplot(toplo1, aes(x = chla, y = dapa)) + 
+  geom_point(aes(size = da), alpha = 0.7) + 
+  theme_bw(base_family = 'serif') + 
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  ylab('Likelihood of Domoic acid') + 
+  scale_size_continuous(leglab, range = c(1, 8))
+
+toplo2 <- jsdat %>% 
+  filter(!is.na(chla) & !is.na(pn)) %>% 
+  mutate(
+    pnhilo = ifelse(pn > 10, 1, 0)
+  ) 
+
+leglab <- expression(paste('Cells (', L^-1, ')'))
+
+p2 <- ggplot(toplo2, aes(x = chla, y = pnhilo)) + 
+  geom_point(aes(size = pn), alpha = 0.7) + 
+  theme_bw(base_family = 'serif') + 
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  scale_y_continuous(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  scale_size_continuous(leglab, range = c(1, 8))
+
+p1 + p2 + plot_layout(ncol = 2)
+```
+
+Conditional probability plots:
 ```{r, eval = F}
-ggplot(tsdat, aes(x = chla, y = pn)) + 
-  geom_point() + 
-  scale_x_log10() + 
-  scale_y_log10()
+data(mgus)
+mgus$A <- ifelse(mgus$age < 64, 0, 1)
 
-ggplot(tsdat, aes(x = chla, y = da)) + 
-  geom_point() + 
-  scale_x_log10() + 
-  scale_y_log10()
+fit <- cpf(Hist(time, ev)~A, mgus)
 
+plot(fit, curvlab = c("Age < 64", "Age >= 64"),
+     main = "Conditional Probability of Cancer", xlab = "Years")
+
+toplo1 <- jsdat %>% 
+  mutate(
+    dapa = ifelse(da > 0, 1, 0),
+    dapa = as.integer(dapa)
+  ) %>% 
+  filter(!is.na(chla) & !is.na(da)) %>% 
+  st_set_geometry(NULL) %>% 
+  dplyr::select(dapa, da, chla)
+
+
+cpf(Hist(chla, da), toplo1)
+mod <- prodlim(Hist(chla, dapa) ~ 1, toplo1)
 ```
 
