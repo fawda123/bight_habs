@@ -15,7 +15,7 @@ library(mapview)
 library(patchwork)
 library(lubridate)
 library(ggrepel)
-library(Cprob)
+library(condprob2)
 
 prj <- 4326 # wgs84
 
@@ -209,7 +209,7 @@ p1 + p2 + p3 + plot_layout(ncol = 1)
 ```
 
 Logistic regression of likelihood of seeing DA with chl, all Bight stations:
-```{r, eval = T, fig.height = 4, fig.width = 9}
+```{r, fig.height = 4, fig.width = 9}
 
 toplo1 <- jsdat %>% 
   mutate(
@@ -246,27 +246,21 @@ p2 <- ggplot(toplo2, aes(x = chla, y = pnhilo)) +
 p1 + p2 + plot_layout(ncol = 2)
 ```
 
-Conditional probability plots:
-```{r, eval = F}
-data(mgus)
-mgus$A <- ifelse(mgus$age < 64, 0, 1)
+Conditional probability plots, same response as above but using non-linear method:
+```{r, fig.height = 4, fig.width = 9}
+cpda <- condprob(jsdat$chla, jsdat$da, 0, 'gt', 'gte', T, R = 1000)
+p1 <- plot(cpda) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  ylab('Likelihood of Domoic acid') + 
+  theme_bw(base_family = 'serif')
 
-fit <- cpf(Hist(time, ev)~A, mgus)
+cppn <- condprob(jsdat$chla, jsdat$pn, 10, 'gt', 'gte', T, R = 1000)
+p2 <- plot(cppn) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) +
+  ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  theme_bw(base_family = 'serif')
 
-plot(fit, curvlab = c("Age < 64", "Age >= 64"),
-     main = "Conditional Probability of Cancer", xlab = "Years")
+p1 + p2 + plot_layout(ncol = 2)
 
-toplo1 <- jsdat %>% 
-  mutate(
-    dapa = ifelse(da > 0, 1, 0),
-    dapa = as.integer(dapa)
-  ) %>% 
-  filter(!is.na(chla) & !is.na(da)) %>% 
-  st_set_geometry(NULL) %>% 
-  dplyr::select(dapa, da, chla)
-
-
-cpf(Hist(chla, da), toplo1)
-mod <- prodlim(Hist(chla, dapa) ~ 1, toplo1)
 ```
 
