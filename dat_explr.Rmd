@@ -68,7 +68,7 @@ tsdat <- wqdat %>%
   st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
 ```
 
-## Plots
+## Maps
 
 Locations with lat/lon, summarized by numbers of years sampled:
 ```{r}
@@ -93,7 +93,8 @@ Caron dataset:
 mapview(jsdat)
 ```
 
-Time series data, Newport Beach and Santa Monica Pier:
+## Newport and Santa Monica time series
+
 ```{r, fig.height = 7, fig.width = 12}
 toplo <- tsdat %>% 
   st_set_geometry(NULL) %>% 
@@ -208,6 +209,242 @@ p3 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) +
 p1 + p2 + p3 + plot_layout(ncol = 1)
 ```
 
+Scatterplots of chl vs DA, psuedo nitzschia concentration:
+```{r, fig.height = 7, fig.width = 8}
+
+toplo1 <- tsdat %>% 
+  filter(!is.na(chla) & !is.na(da))
+
+ylb <- expression(paste('Domoic acid conc. (ng  ', L^-1, ')'))
+
+p1 <- ggplot(toplo1, aes(x = chla, y = da)) + 
+  geom_point(alpha = 0.7) + 
+  theme_bw(base_family = 'serif') + 
+  theme(strip.background = element_blank()) +
+  facet_wrap(~`Station ID`, ncol = 1) + 
+  # geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  scale_y_log10(ylb)
+
+toplo2 <- tsdat %>% 
+  filter(!is.na(chla) & !is.na(pn))
+
+ylb <- expression(paste('Cells (', L^-1, ')'))
+
+p2 <- ggplot(toplo2, aes(x = chla, y = pn)) + 
+  geom_point(alpha = 0.7) + 
+  theme_bw(base_family = 'serif') + 
+  theme(strip.background = element_blank()) +
+  facet_wrap(~`Station ID`, ncol = 1) + 
+  # geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) +
+  scale_y_log10(ylb)
+
+p1 + p2 + plot_layout(ncol = 2)
+```
+
+Logistic regression of likelihood of seeing DA with chl, all Bight stations:
+```{r, fig.height = 7, fig.width = 8}
+
+toplo1 <- tsdat %>% 
+  mutate(
+    dapa = ifelse(da > 0, 1, 0)
+  ) %>% 
+  filter(!is.na(chla) & !is.na(da))
+
+leglab <- expression(paste('Domoic acid\nconc. (ng ', L^-1, ')'))
+
+p1 <- ggplot(toplo1, aes(x = chla, y = dapa)) + 
+  geom_point(aes(size = da), alpha = 0.7) + 
+  theme_bw(base_family = 'serif') + 
+  theme(
+    strip.background = element_blank(),
+    legend.position = 'top'
+    ) + 
+  facet_wrap(~`Station ID`, ncol = 1) + 
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  ylab('Likelihood of domoic acid') + 
+  scale_size_continuous(leglab, range = c(1, 8))
+
+toplo2 <- tsdat %>% 
+  filter(!is.na(chla) & !is.na(pn)) %>% 
+  mutate(
+    pnhilo = ifelse(pn > 100, 1, 0)
+  ) 
+
+leglab <- expression(paste('Cells (', L^-1, ')'))
+
+p2 <- ggplot(toplo2, aes(x = chla, y = pnhilo)) + 
+  geom_point(aes(size = pn), alpha = 0.7) + 
+  theme_bw(base_family = 'serif') + 
+  theme(
+    strip.background = element_blank(), 
+    legend.position = 'top'
+    ) + 
+  facet_wrap(~`Station ID`, ncol = 1) + 
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  scale_y_continuous(expression(paste('Likelihood of high cell concentration (> 100    ', L^-1, ')'))) + 
+  scale_size_continuous(leglab, range = c(1, 8))
+
+p1 + p2 + plot_layout(ncol = 2)
+```
+
+Conditional probability plots, same response as above but using non-linear method.  The first set shows the likelihood of observing domoic acid or cell concentration greater than 100 L$^{-1}$ at concentrations of chlorophyll less than or equal to those on the x-axis.
+```{r, fig.height = 7, fig.width = 8}
+
+cpdanp <- condprob(tsdat$chla[tsdat$`Station ID` %in% 'Newport Pier'], tsdat$da[tsdat$`Station ID` %in% 'Newport Pier'], 0, 'gt', 'lte', T, R = 1000)
+p1 <- plot(cpdanp) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), less than or equal to'))) + 
+  ylab('Likelihood of Domoic acid') + 
+  theme_bw(base_family = 'serif') + 
+  ggtitle('Newport Pier')
+
+
+cpdasm <- condprob(tsdat$chla[tsdat$`Station ID` %in% 'Santa Monica Pier'], tsdat$da[tsdat$`Station ID` %in% 'Santa Monica Pier'], 0, 'gt', 'lte', T, R = 1000)
+p2 <- plot(cpdasm) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), less than or equal to'))) + 
+  ylab('Likelihood of Domoic acid') + 
+  theme_bw(base_family = 'serif') + 
+  ggtitle('Santa Monica Pier')
+
+cppnnp <- condprob(tsdat$chla[tsdat$`Station ID` %in% 'Newport Pier'], tsdat$pn[tsdat$`Station ID` %in% 'Newport Pier'], 100, 'gt', 'lte', T, R = 1000)
+p3 <- plot(cppnnp) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), less than or equal to'))) +
+  ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  theme_bw(base_family = 'serif') + 
+  ggtitle('Newport Pier')
+
+
+cppnsm <- condprob(tsdat$chla[tsdat$`Station ID` %in% 'Santa Monica Pier'], tsdat$pn[tsdat$`Station ID` %in% 'Santa Monica Pier'], 100, 'gt', 'lte', T, R = 1000)
+p4 <- plot(cppnsm) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), less than or equal to'))) +
+  ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  theme_bw(base_family = 'serif') + 
+  ggtitle('Santa Monica Pier')
+
+p1 + p3 + p3 + p4 + plot_layout(ncol = 2)
+```
+
+The second set shows the likelihood of observing domoic acid or cell concentration greater than 10 L$^{-1}$ at concentrations of chlorophyll greater than or equal to those on the x-axis.
+```{r, fig.height = 7, fig.width = 8}
+
+cpdanp <- condprob(tsdat$chla[tsdat$`Station ID` %in% 'Newport Pier'], tsdat$da[tsdat$`Station ID` %in% 'Newport Pier'], 0, 'gt', 'gte', T, R = 1000)
+p1 <- plot(cpdanp) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), greater than or equal to'))) + 
+  ylab('Likelihood of Domoic acid') + 
+  theme_bw(base_family = 'serif') + 
+  ggtitle('Newport Pier')
+
+
+cpdasm <- condprob(tsdat$chla[tsdat$`Station ID` %in% 'Santa Monica Pier'], tsdat$da[tsdat$`Station ID` %in% 'Santa Monica Pier'], 0, 'gt', 'gte', T, R = 1000)
+p2 <- plot(cpdasm) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), greater than or equal to'))) + 
+  ylab('Likelihood of Domoic acid') + 
+  theme_bw(base_family = 'serif') + 
+  ggtitle('Santa Monica Pier')
+
+cppnnp <- condprob(tsdat$chla[tsdat$`Station ID` %in% 'Newport Pier'], tsdat$pn[tsdat$`Station ID` %in% 'Newport Pier'], 100, 'gt', 'gte', T, R = 1000)
+p3 <- plot(cppnnp) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), greater than or equal to'))) +
+  ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  theme_bw(base_family = 'serif') + 
+  ggtitle('Newport Pier')
+
+
+cppnsm <- condprob(tsdat$chla[tsdat$`Station ID` %in% 'Santa Monica Pier'], tsdat$pn[tsdat$`Station ID` %in% 'Santa Monica Pier'], 100, 'gt', 'gte', T, R = 1000)
+p4 <- plot(cppnsm) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), greater than or equal to'))) +
+  ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  theme_bw(base_family = 'serif') + 
+  ggtitle('Santa Monica Pier')
+
+p1 + p3 + p3 + p4 + plot_layout(ncol = 2)
+
+```
+
+## Spatial data, all except time series
+
+Temporal distribution:
+```{r, fig.height = 7, fig.width = 8}
+# response labels 
+labs <- list(
+  shrt = c('chla', 'da', 'pn'),
+  expr = c(
+    expression(paste('Chl-a (ug ', L^-1, ')')), 
+    expression(paste('Domoic acid conc. (ng ', L^-1, ')')),
+    expression(paste('Pseudo-nitzchia, cells (', L^-1, ')'))
+    )
+  )
+
+toplo <- jsdat %>% 
+  st_set_geometry(NULL) %>% 
+  dplyr::select(Year, Month, da, pn, chla) %>% 
+  gather('var', 'val', -Year, -Month) %>% 
+  mutate(var = factor(var, 
+                      levels = labs$shrt, 
+                      labels = labs$expr
+  ))
+
+p1 <- ggplot(toplo, aes(x = factor(Year), y = val)) + 
+  facet_wrap(~var, scales = 'free_y', strip.position = 'left', labeller = label_parsed) + 
+  geom_boxplot() +
+  theme_bw(base_family = 'serif') + 
+  theme(
+    axis.title.y = element_blank(), 
+    strip.background = element_blank(), 
+    strip.placement = 'outside'
+  ) + 
+  xlab('Year') + 
+  scale_y_log10()
+
+p2 <- ggplot(toplo, aes(x = Month, y = val)) + 
+  facet_wrap(~var, scales = 'free_y', strip.position = 'left', labeller = label_parsed) + 
+  geom_boxplot() +
+  theme_bw(base_family = 'serif') + 
+  theme(
+    axis.title.y = element_blank(), 
+    strip.background = element_blank(), 
+    strip.placement = 'outside', 
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)
+  ) + 
+  xlab('Month') + 
+  scale_y_log10()
+
+p1 + p2 + plot_layout(ncol = 1)
+```
+
+Scatterplots of chl vs DA, psuedo nitzschia concentration:
+```{r, fig.height = 4, fig.width = 9}
+
+toplo1 <- jsdat %>% 
+  filter(!is.na(chla) & !is.na(da))
+
+ylb <- expression(paste('Domoic acid conc. (ng ', L^-1, ')'))
+
+p1 <- ggplot(toplo1, aes(x = chla, y = da)) + 
+  geom_point(alpha = 0.7) + 
+  theme_bw(base_family = 'serif') + 
+  # geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  ylab(ylb)
+
+toplo2 <- jsdat %>% 
+  filter(!is.na(chla) & !is.na(pn))
+
+ylb <- expression(paste('Cells (', L^-1, ')'))
+
+p2 <- ggplot(toplo2, aes(x = chla, y = pn)) + 
+  geom_point(alpha = 0.7) + 
+  theme_bw(base_family = 'serif') + 
+  # geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  ylab(ylb)
+
+p1 + p2 + plot_layout(ncol = 2)
+```
+
 Logistic regression of likelihood of seeing DA with chl, all Bight stations:
 ```{r, fig.height = 4, fig.width = 9}
 
@@ -222,6 +459,9 @@ leglab <- expression(paste('Domoic acid\nconc. (ng ', L^-1, ')'))
 p1 <- ggplot(toplo1, aes(x = chla, y = dapa)) + 
   geom_point(aes(size = da), alpha = 0.7) + 
   theme_bw(base_family = 'serif') + 
+  theme(
+    legend.position = 'top'
+    ) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
   scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
   ylab('Likelihood of Domoic acid') + 
@@ -238,6 +478,9 @@ leglab <- expression(paste('Cells (', L^-1, ')'))
 p2 <- ggplot(toplo2, aes(x = chla, y = pnhilo)) + 
   geom_point(aes(size = pn), alpha = 0.7) + 
   theme_bw(base_family = 'serif') + 
+  theme(
+    legend.position = 'top'
+    ) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"), colour = 'black') +
   scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
   scale_y_continuous(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
@@ -246,21 +489,62 @@ p2 <- ggplot(toplo2, aes(x = chla, y = pnhilo)) +
 p1 + p2 + plot_layout(ncol = 2)
 ```
 
-Conditional probability plots, same response as above but using non-linear method:
+Conditional probability plots, same response as above but using non-linear method.  The first set shows the likelihood of observing domoic acid or cell concentration greater than 10 L$^{-1}$ at concentrations of chlorophyll less than or equal to those on the x-axis.
+```{r, fig.height = 4, fig.width = 9}
+cpda <- condprob(jsdat$chla, jsdat$da, 0, 'gt', 'lte', T, R = 1000)
+p1 <- plot(cpda) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), less than or equal to'))) + 
+  ylab('Likelihood of Domoic acid') + 
+  theme_bw(base_family = 'serif')
+
+cppn <- condprob(jsdat$chla, jsdat$pn, 10, 'gt', 'lte', T, R = 1000)
+p2 <- plot(cppn) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), less than or equal to'))) +
+  ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  theme_bw(base_family = 'serif')
+
+p1 + p2 + plot_layout(ncol = 2)
+
+```
+
+The second set shows the likelihood of observing domoic acid or cell concentration greater than 10 L$^{-1}$ at concentrations of chlorophyll greater than or equal to those on the x-axis.
 ```{r, fig.height = 4, fig.width = 9}
 cpda <- condprob(jsdat$chla, jsdat$da, 0, 'gt', 'gte', T, R = 1000)
 p1 <- plot(cpda) + 
-  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) + 
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), greater than or equal to'))) + 
   ylab('Likelihood of Domoic acid') + 
   theme_bw(base_family = 'serif')
 
 cppn <- condprob(jsdat$chla, jsdat$pn, 10, 'gt', 'gte', T, R = 1000)
 p2 <- plot(cppn) + 
-  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, ')'))) +
+  scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), greater than or equal to'))) +
   ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
   theme_bw(base_family = 'serif')
 
 p1 + p2 + plot_layout(ncol = 2)
+
+```
+
+```{r}
+toplo <- tsdat %>% 
+  st_set_geometry(NULL) %>% 
+  dplyr::select(`Full Date`, `Station ID`, da, pn, chla) %>%
+  mutate(
+    da = 1000*da, # mg/L
+    da.edit = ifelse(da > 400, 401, da),
+    text.da = ifelse(da > 400, 'Y', 'N'),
+    zero.da = ifelse(da > 0, 'N', 'Y'), 
+    pn = pn / 1000, # cells/ml
+    pn.edit = ifelse(pn > 400, 401, pn),
+    text.pn = ifelse(pn > 400, 'Y', 'N'),
+    zero.pn = ifelse(pn > 0, 'N', 'Y'),
+    chla.edit = ifelse(chla > 20, 21, chla),
+    text.chla = ifelse(chla > 20, 'Y', 'N'),
+    zero.chla = ifelse(chla > 0, 'N', 'Y')
+  )
+dalabs <- filter(toplo, text.da == 'Y')
+pnlabs <- filter(toplo, text.pn == 'Y')
+chlalabs <- filter(toplo, text.chla == 'Y')
 
 ```
 
