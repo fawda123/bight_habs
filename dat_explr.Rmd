@@ -148,7 +148,7 @@ p1 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) +
   guides(colour = guide_legend(), size = guide_legend()) +
   ggtitle('(a) Domoic Acid (DA)') 
 
-leglab <- expression(paste('cells (', L^-1, ')'))
+leglab <- expression(paste('cells (', mL^-1, ')'))
 brks <- c(0, 50, 100, 150, 200, 400)
 labs <- c('>0-50', '50-100', '100-150', '150-200', '200-400', '>400')
 p2 <- ggplot(toplo, aes(x = `Full Date`, y = `Station ID`)) + 
@@ -470,7 +470,7 @@ p1 <- ggplot(toplo1, aes(x = chla, y = dapa)) +
 toplo2 <- jsdat %>% 
   filter(!is.na(chla) & !is.na(pn)) %>% 
   mutate(
-    pnhilo = ifelse(pn > 10, 1, 0)
+    pnhilo = ifelse(pn > 10000, 1, 0)
   ) 
 
 leglab <- expression(paste('Cells (', L^-1, ')'))
@@ -497,10 +497,10 @@ p1 <- plot(cpda) +
   ylab('Likelihood of Domoic acid') + 
   theme_bw(base_family = 'serif')
 
-cppn <- condprob(jsdat$chla, jsdat$pn, 10, 'gt', 'lte', T, R = 1000)
+cppn <- condprob(jsdat$chla, jsdat$pn, 10000, 'gt', 'lte', T, R = 1000)
 p2 <- plot(cppn) + 
   scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), less than or equal to'))) +
-  ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  ylab(expression(paste('Likelihood of high cell concentration (> 10000     ', L^-1, ')'))) + 
   theme_bw(base_family = 'serif')
 
 p1 + p2 + plot_layout(ncol = 2)
@@ -515,36 +515,13 @@ p1 <- plot(cpda) +
   ylab('Likelihood of Domoic acid') + 
   theme_bw(base_family = 'serif')
 
-cppn <- condprob(jsdat$chla, jsdat$pn, 10, 'gt', 'gte', T, R = 1000)
+cppn <- condprob(jsdat$chla, jsdat$pn, 10000, 'gt', 'gte', T, R = 1000)
 p2 <- plot(cppn) + 
   scale_x_log10(expression(paste('Chl-a (ug ', L^-1, '), greater than or equal to'))) +
-  ylab(expression(paste('Likelihood of high cell concentration (> 10    ', L^-1, ')'))) + 
+  ylab(expression(paste('Likelihood of high cell concentration (> 10000      ', L^-1, ')'))) + 
   theme_bw(base_family = 'serif')
 
 p1 + p2 + plot_layout(ncol = 2)
-
-```
-
-```{r}
-toplo <- tsdat %>% 
-  st_set_geometry(NULL) %>% 
-  dplyr::select(`Full Date`, `Station ID`, da, pn, chla) %>%
-  mutate(
-    da = 1000*da, # mg/L
-    da.edit = ifelse(da > 400, 401, da),
-    text.da = ifelse(da > 400, 'Y', 'N'),
-    zero.da = ifelse(da > 0, 'N', 'Y'), 
-    pn = pn / 1000, # cells/ml
-    pn.edit = ifelse(pn > 400, 401, pn),
-    text.pn = ifelse(pn > 400, 'Y', 'N'),
-    zero.pn = ifelse(pn > 0, 'N', 'Y'),
-    chla.edit = ifelse(chla > 20, 21, chla),
-    text.chla = ifelse(chla > 20, 'Y', 'N'),
-    zero.chla = ifelse(chla > 0, 'N', 'Y')
-  )
-dalabs <- filter(toplo, text.da == 'Y')
-pnlabs <- filter(toplo, text.pn == 'Y')
-chlalabs <- filter(toplo, text.chla == 'Y')
 
 ```
 

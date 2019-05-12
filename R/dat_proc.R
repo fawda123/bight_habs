@@ -11,7 +11,7 @@ prj <- 4326 # wgs84
 
 # master data proc --------------------------------------------------------
 
-wqdat <- read_excel('data/raw/DA retro_Carondata_March 2019.xlsx', sheet = 'Master List', 
+wqdat <- read_excel('data/raw/DA retro_Carondata_May 2019.xlsx', sheet = 'Master List', 
                   col_types = c('numeric', 'numeric', 'text', 'date', 'text', 'text', 'numeric', 'text', 'text', 'text',
                                 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 'numeric', 
                                 'numeric', 'numeric', 'numeric', 'text'),
