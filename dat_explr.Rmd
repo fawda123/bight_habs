@@ -16,6 +16,7 @@ library(patchwork)
 library(lubridate)
 library(ggrepel)
 library(condprob2)
+library(here)
 
 prj <- 4326 # wgs84
 
@@ -66,6 +67,12 @@ tsdat <- wqdat %>%
   ) %>% 
   filter(!is.na(Lat)) %>% 
   st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
+```
+
+## Conceptual model
+
+```{r, out.height="70%"}
+knitr::include_graphics(here('figs', 'model.png'))
 ```
 
 ## Maps
