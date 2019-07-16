@@ -36,3 +36,21 @@ wqdat <- read_excel('data/raw/DA retro_Carondata_May 2019.xlsx', sheet = 'Master
   ) 
 
 save(wqdat, file = 'data/wqdat.RData', compress = 'xz')
+
+
+# time series data --------------------------------------------------------
+
+# note that wq dat has some of the sites but the data here are more complete
+
+tsdat <- read_csv(here('data/raw', 'SCCOOS shore stations_2008_2019.csv'), na = c('NaN', 'na', 'NA'), col_types = cols()) %>% 
+  rename(
+    Lat = latitude, 
+    Long = longitude, 
+    `Water Temperature (C)` = `Water Temperature (<U+00B0>C)`
+  ) %>% 
+  unite('date', year, month, day, sep = '-', remove = F) %>% 
+  mutate(
+    date = ymd(date)
+  )
+                    
+save(tsdat, file = here('data', 'tsdat.RData'), compress = 'xz')
