@@ -75,32 +75,7 @@ tsdat <- wqdat %>%
 knitr::include_graphics(here('figs', 'model.png'))
 ```
 
-## Maps
-
-Locations with lat/lon, summarized by numbers of years sampled:
-```{r}
-wqdatgeosum <- wqdat %>% 
-  filter(!is.na(Lat)) %>%
-  group_by(`Station ID`) %>% 
-  nest %>% 
-  mutate(
-    nyrs = purrr::map(data, function(x) length(unique(x$Year))),
-    Lat = purrr::map(data, function(x) mean(x$Lat, na.rm = T)), 
-    Long = purrr::map(data, function(x) mean(x$Long, na.rm = T))
-  ) %>% 
-  dplyr::select(-data) %>% 
-  unnest %>% 
-  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
-
-mapview(wqdatgeosum, zcol = 'nyrs', layer.name = "Years sampled")
-```
-
-Caron dataset:
-```{r}
-mapview(jsdat)
-```
-
-## Newport and Santa Monica time series
+## LTM time series
 
 ```{r, fig.height = 7, fig.width = 12}
 toplo <- tsdat %>% 
