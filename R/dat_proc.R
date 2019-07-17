@@ -51,7 +51,9 @@ tsdat <- read_csv(here('data/raw', 'SCCOOS shore stations_2008_2019.csv'), na = 
   ) %>% 
   unite(date, year, month, day, sep = '-', remove = F) %>% 
   mutate(
-    date = ymd(date)
+    date = ymd(date),
+    qrt = quarter(date),
+    qrt = factor(qrt, levels = c('1', '2', '3', '4'), labels = c('JFM', 'AMJ', 'JAS', 'OND'), ordered = T)
   )
                     
 save(tsdat, file = here('data', 'tsdat.RData'), compress = 'xz')

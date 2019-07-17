@@ -7,7 +7,7 @@ output:
 # Exploration of DA Bight dataset {.tabset}
 
 ```{r message = F, warning = F, results = 'hide'}
-knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/')
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
 
 library(tidyverse)
 library(sf)
@@ -23,6 +23,7 @@ library(FactoMineR)
 library(missMDA)
 library(vegan)
 library(ggord)
+library(scales)
 
 prj <- 4326 # wgs84
 
@@ -53,10 +54,7 @@ tsdat <- tsdat %>%
     nitrite = `Nitrite (uM)`,
     ammonia = `Ammonia (uM)`,
     depth = `depth (m)`
-  ) %>% 
-  mutate(
-    qrt = quarter(date)
-  )
+  ) 
 
 # all wq data as sf
 tsdatgeo <- tsdat %>% 
@@ -398,17 +396,16 @@ grid.arrange(
 )
 ```
 
-## Multivariate analyses {.tabset}
+## Multivariate analyses {.tabset .tabset-pills}
 
 ### PCA
 
-```{r, out.height = "100%", fig.height = 9, fig.width = 7}
+```{r, out.height = "100%", fig.height = 17, fig.width = 6, fig.align="center"}
 
 mythm2 <- theme_bw(base_family = 'serif') +
   theme(
-    legend.position = 'none', 
     strip.background = element_blank(), 
-    text = element_text(family = 'serif')
+    text = element_text(family = 'serif', size = 12)
   ) 
 
 # all dates
@@ -418,21 +415,20 @@ tomodall <- tsdat %>%
     nitrate = ifelse(nitrate < 0, 0, nitrate)
     ) %>% 
   select(ammonia, chla, da, nitrate, nitrite, phosphorus, pntot, silicate, temp) %>% 
-  mutate_at(vars(-temp), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>% 
+  mutate_at(vars(-temp), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>%
   as.data.frame %>% 
   imputePCA %>% 
   .$completeObs
   
-pcamod <- PCA(tomodall, scale.unit = F, graph = F)
+pcamod <- PCA(tomodall, scale.unit = T, graph = F)
 
-p1 <- ggord(pcamod, vec_ext = 3.5, alpha = 0.5, size = 1, txt = 4, arrow = 0.2, repel = T, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1') + 
+p1 <- ggord(pcamod, size = tsdat$Lat, vec_ext = 6, alpha = 0.5, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
   mythm2 +
-  ggtitle('All dates')
+  ggtitle('All dates') + 
+  scale_size(range = c(0.3, 1.5))
+
 
 pcamodgrp <- tsdat %>% 
-  mutate(
-    qrt = factor(qrt, levels = c('1', '2', '3', '4'), labels = c('JFM', 'AMJ', 'JAS', 'OND'))
-  ) %>% 
   group_by(qrt) %>% 
   nest %>% 
   mutate(
@@ -449,11 +445,12 @@ pcamodgrp <- tsdat %>%
         imputePCA %>% 
         .$completeObs
   
-      pcamod <- PCA(tomod, scale.unit = F, graph = F)
+      pcamod <- PCA(tomod, scale.unit = T, graph = F)
 
-      p <- ggord(pcamod, vec_ext = 3.5, alpha = 0.5, size = 1, txt = 4, arrow = 0.2, repel = T, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1') + 
+      p <- ggord(pcamod, vec_ext = 6, alpha = 0.5, size = data$Lat, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
         mythm2 +
-        ggtitle(qrt)
+        ggtitle(qrt)+ 
+        scale_size(range = c(0.3, 1.5))
       
       return(p)
       
@@ -462,79 +459,8 @@ pcamodgrp <- tsdat %>%
   pull(plo)
 
 grid.arrange(
-  p1, 
-  arrangeGrob(pcamodgrp[[3]], pcamodgrp[[4]], pcamodgrp[[1]], pcamodgrp[[2]], ncol = 2), 
+  p1, pcamodgrp[[3]], pcamodgrp[[4]], pcamodgrp[[1]], pcamodgrp[[2]], 
   ncol = 1
 )
-
-```
-
-### NMDS
-
-```{r, out.height = "100%", fig.height = 9, fig.width = 7}
-
-mythm2 <- theme_bw(base_family = 'serif') +
-  theme(
-    legend.position = 'none', 
-    strip.background = element_blank(), 
-    text = element_text(family = 'serif')
-  ) 
-
-# # all dates
-# tomodall <- tsdat %>% 
-#   mutate(
-#     temp = ifelse(temp == 0, NA, temp),
-#     nitrate = ifelse(nitrate < 0, 0, nitrate)
-#     ) %>% 
-#   select(ammonia, chla, da, nitrate, nitrite, phosphorus, pntot, silicate, temp) %>% 
-#   mutate_all(function(x) ifelse(is.na(x), median(x, na.rm = T), x)) #%>%
-#   # as.data.frame %>% 
-#   # imputePCA %>% 
-#   # .$completeObs
-#   
-# nmsmod <- metaMDS(tomodall, distance = 'euclidean')
-# save(nmsmod, file = here('data', 'nmsmod.RData'), compress = 'xz')
-# data(nmsmod)
-# p1 <- ggord(nmsmod, vec_ext = 1, alpha = 0.5, size = 1, txt = 4, arrow = 0.2, repel = T, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1') + 
-#   mythm2 +
-#   ggtitle('All dates')
-# 
-# pcamodgrp <- tsdat %>% 
-#   mutate(
-#     qrt = factor(qrt, levels = c('1', '2', '3', '4'), labels = c('JFM', 'AMJ', 'JAS', 'OND'))
-#   ) %>% 
-#   group_by(qrt) %>% 
-#   nest %>% 
-#   mutate(
-#     plo = purrr::pmap(list(qrt, data), function(qrt, data){
-#       
-#       tomod <- data %>% 
-#         mutate(
-#           temp = ifelse(temp == 0, NA, temp),
-#           nitrate = ifelse(nitrate < 0, 0, nitrate)
-#           ) %>% 
-#         select(ammonia, chla, da, nitrate, nitrite, phosphorus, pntot, silicate, temp) %>% 
-#         mutate_at(vars(-temp), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>% 
-#         as.data.frame %>% 
-#         imputePCA %>% 
-#         .$completeObs
-#   
-#       pcamod <- PCA(tomod, scale.unit = F, graph = F)
-# 
-#       p <- ggord(pcamod, vec_ext = 3.5, alpha = 0.5, size = 1, txt = 4, arrow = 0.2, repel = T, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1') + 
-#         mythm2 +
-#         ggtitle(qrt)
-#       
-#       return(p)
-#       
-#     })
-#   ) %>% 
-#   pull(plo)
-# 
-# grid.arrange(
-#   p1, 
-#   arrangeGrob(pcamodgrp[[3]], pcamodgrp[[4]], pcamodgrp[[1]], pcamodgrp[[2]], ncol = 2), 
-#   ncol = 1
-# )
 
 ```
