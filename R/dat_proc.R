@@ -6,6 +6,7 @@ library(tidyverse)
 library(readxl)
 library(lubridate)
 library(sf)
+library(here)
 
 prj <- 4326 # wgs84
 
@@ -48,7 +49,7 @@ tsdat <- read_csv(here('data/raw', 'SCCOOS shore stations_2008_2019.csv'), na = 
     Long = longitude, 
     `Water Temperature (C)` = `Water Temperature (<U+00B0>C)`
   ) %>% 
-  unite('date', year, month, day, sep = '-', remove = F) %>% 
+  unite(date, year, month, day, sep = '-', remove = F) %>% 
   mutate(
     date = ymd(date)
   )
