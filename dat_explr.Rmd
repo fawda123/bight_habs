@@ -36,6 +36,7 @@ pbase <- theme_bw(base_family = 'serif', base_size = 14) +
     legend.title = element_blank()
   )
 
+data(wqdat)
 data(tsdat)
 
 # rename some stuff
@@ -69,6 +70,26 @@ tsdatgeo <- tsdat %>%
 
 ```{r, out.height="70%"}
 knitr::include_graphics(here('figs', 'model.png'))
+```
+
+## Locations and years sampled
+
+Locations with lat/lon, summarized by numbers of years sampled:	
+
+```{r}	
+wqdatgeosum <- wqdat %>% 	
+  filter(!is.na(Lat)) %>%	
+  group_by(`Station ID`) %>% 	
+  nest %>% 	
+  mutate(	
+    nyrs = purrr::map(data, function(x) length(unique(x$Year))),	
+    Lat = purrr::map(data, function(x) mean(x$Lat, na.rm = T)), 	
+    Long = purrr::map(data, function(x) mean(x$Long, na.rm = T))	
+  ) %>% 	
+  dplyr::select(-data) %>% 	
+  unnest %>% 	
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj)	
+ mapview(wqdatgeosum, zcol = 'nyrs', layer.name = "Years sampled")
 ```
 
 ## LTM time series
