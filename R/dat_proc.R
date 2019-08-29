@@ -36,7 +36,7 @@ wqdat <- read_excel('data/raw/DA retro_Carondata_May 2019.xlsx', sheet = 'Master
     Year = year(`Full Date`)
   ) 
 
-save(wqdat, file = 'data/wqdat.RData', compress = 'xz')
+save(wqdat, file = here('data' , 'wqdat.RData'), compress = 'xz')
 
 
 # time series data --------------------------------------------------------
@@ -83,5 +83,70 @@ tsdat <- tsdat %>%
     tempanom = temp - tempseas
   ) %>% 
   ungroup
+
+# upwelling index data
+# https://oceanview.pfeg.noaa.gov/products/upwelling/dnld
+
+# locations of upwelling estimates
+locs <- tibble(
+    lat = c(60, 60, 57, 54, 51, 48, 45, 42, 39, 36, 33, 30, 27, 24, 21),
+    lon = c(149, 146, 137, 134, 131, 125, 125, 125, 125, 122, 119, 119, 116, 113, 107),
+    stat = seq(1:15)
+  ) %>% 
+  mutate(lon = -1 * lon) %>% 
+  st_as_sf(coords = c('lon', 'lat'), crs = prj)
+
+# habs monitoring station locations
+# st_nearest_feature gets index of nearest station in locs
+tsstat <- tsdat %>% 
+  select(location, Long, Lat) %>% 
+  unique %>% 
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj) %>% 
+  mutate(
+    stat = st_nearest_feature(., locs)
+  ) %>% 
+  st_set_geometry(NULL)
+
+# get upwelling data for stations 10, 11
+upwell <- tibble(
+  stat = c(10, 11), 
+  url = c(
+    'https://oceanwatch.pfeg.noaa.gov/products/PFELData/upwell/daily/p10dayac.all',
+    'https://oceanwatch.pfeg.noaa.gov/products/PFELData/upwell/daily/p11dayac.all'
+    )
+  ) %>% 
+  group_by_all() %>% 
+  mutate(
+    ind = map(url, function(x){
+      
+      datin <- readLines(x) 
+      
+      out <- datin %>% 
+        .[-c(1:6)] %>% 
+        tibble(dat = .) %>% 
+        separate(dat, c('date', 'ind'), sep = '\\s+') %>% 
+        mutate(
+          date = ymd(date),
+          ind = ifelse(ind == -9999, NA, ind), 
+          ind = as.numeric(ind)
+        )
+      
+      return(out)
+      
+    })
+  ) %>% 
+  ungroup %>% 
+  select(-url)
+
+# join ts and station data with upwelling data
+tsstat <- tsstat %>% 
+  left_join(upwell, by = 'stat') %>% 
+  unnest %>% 
+  select(-stat) %>% 
+  rename(upwell = ind)
+
+# join tsstat to tsdat
+tsdat <- tsdat %>% 
+  left_join(tsstat, by = c('date', 'location'))
 
 save(tsdat, file = here('data', 'tsdat.RData'), compress = 'xz')

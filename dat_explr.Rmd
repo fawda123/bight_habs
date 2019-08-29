@@ -215,7 +215,6 @@ p1 <- ggplot(tsdat, aes(x = date)) +
   labs(y = 'Temperature (C)') +
   pthm
 
-
 p2 <- ggplot(tsdat, aes(x = date)) + 
   geom_segment(aes(y = 0, yend = tempanom, xend = date, colour = tempanom)) +  
   geom_hline(yintercept = 0, color = 'red') +
