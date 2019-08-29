@@ -39,31 +39,11 @@ pbase <- theme_bw(base_family = 'serif', base_size = 14) +
 data(wqdat)
 data(tsdat)
 
-# rename some stuff
-tsdat <- tsdat %>% 
-  filter(!location %in% 'Monterey Wharf') %>% 
-  rename(
-    chla = `Chlorophyll (mg/m3)`,
-    da = `Domoic Acid (ng/mL)`,
-    pntot = `Pseudo-nitzschia Total Cells (cells/L)`,
-    pndel = `Pseudo-nitzschia delicatissima group (cells/L)`,
-    pnser = `Pseudo-nitzschia seriata group (cells/L)`,
-    temp = `Water Temperature (C)`, 
-    phosphorus = `Phosphate (uM)`,
-    silicate = `Silicate (uM)`, 
-    nitrate = `Nitrate (uM)`,
-    nitrite = `Nitrite (uM)`,
-    ammonia = `Ammonia (uM)`,
-    depth = `depth (m)`
-  ) 
-
 # all wq data as sf
 tsdatgeo <- tsdat %>% 
   select(location, Long, Lat) %>% 
   unique %>% 
   st_as_sf(., coords = c('Long', 'Lat'), crs = prj)
-
-
 ```
 
 ## Conceptual model
@@ -131,7 +111,7 @@ cols <- c('lightgreen', 'tomato1') #c('gray50', 'grey15')
 leglab <- expression(paste('conc. (mg ', L^-1, ')'))
 brks <- c(0, 50, 100, 150, 200, 400)
 labs <- c('>0-50', '50-100', '100-150', '150-200', '200-400', '>400')
-p1 <- ggplot(toplo, aes(x = date, y = reorder(location, Lat))) + 
+p1 <- ggplot(toplo, aes(x = date, y = location)) + 
   geom_point(aes(size = da.edit, shape = zero.da, colour = da.edit), alpha = 0.8) + 
   # geom_label_repel(data = dalabs, aes(label = floor(da)),
   #   box.padding = 1,
@@ -160,7 +140,7 @@ p1 <- ggplot(toplo, aes(x = date, y = reorder(location, Lat))) +
 leglab <- expression(paste('cells (', mL^-1, ')'))
 brks <- c(0, 50, 100, 150, 200, 400)
 labs <- c('>0-50', '50-100', '100-150', '150-200', '200-400', '>400')
-p2 <- ggplot(toplo, aes(x = date, y = reorder(location, Lat))) + 
+p2 <- ggplot(toplo, aes(x = date, y = location)) + 
   geom_point(aes(size = pn.edit, shape = zero.pn, colour = pn.edit), alpha = 0.8) + 
   # geom_label_repel(data = pnlabs, aes(label = floor(pn)), 
   #   box.padding = 1,
@@ -189,7 +169,7 @@ p2 <- ggplot(toplo, aes(x = date, y = reorder(location, Lat))) +
 leglab <- expression(paste('conc. (ug ', L^-1, ')'))
 brks <- c(0, 1, 5, 10, 15, 20)
 labs <- c('>0-1', '1-5', '5-10', '10-15', '15-20', '>20')
-p3 <- ggplot(toplo, aes(x = date, y = reorder(location, Lat))) + 
+p3 <- ggplot(toplo, aes(x = date, y = location)) + 
   geom_point(aes(size = chla.edit, shape = zero.chla, colour = chla.edit), alpha = 0.8) + 
   # geom_label_repel(data = chlalabs, aes(label = floor(chla)), 
   #   box.padding = 1,
@@ -216,6 +196,35 @@ p3 <- ggplot(toplo, aes(x = date, y = reorder(location, Lat))) +
   ggtitle('(c) Chlorophyll-a') 
 
 p1 + p2 + p3 + plot_layout(ncol = 1)
+```
+
+Temperature anomalies by station: 
+
+```{r, fig.height = 8, fig.width = 12}
+pthm <- theme_bw(base_family = 'serif') + 
+  theme(
+    strip.background = element_blank(), 
+    axis.title.x = element_blank(),
+    legend.position = 'none'
+  )
+
+p1 <- ggplot(tsdat, aes(x = date)) + 
+  geom_line(aes(y = temp)) +
+  geom_line(aes(y = tempseas), colour = 'red') + 
+  facet_wrap(~location, ncol = 1) + 
+  labs(y = 'Temperature (C)') +
+  pthm
+
+
+p2 <- ggplot(tsdat, aes(x = date)) + 
+  geom_segment(aes(y = 0, yend = tempanom, xend = date, colour = tempanom)) +  
+  geom_hline(yintercept = 0, color = 'red') +
+  facet_wrap(~location, ncol = 1) +
+  labs(y = 'Anomalies (C)') + 
+  scale_colour_gradient2(low = 'tomato1', mid = 'lightgreen', high = 'tomato1', midpoint= 0) + 
+  pthm
+
+p1 + p2 + plot_layout(ncol = 2)
 ```
 
 ## Conditional probability analyses

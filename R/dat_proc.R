@@ -44,16 +44,44 @@ save(wqdat, file = 'data/wqdat.RData', compress = 'xz')
 # note that wq dat has some of the sites but the data here are more complete
 
 tsdat <- read_csv(here('data/raw', 'SCCOOS shore stations_2008_2019.csv'), na = c('NaN', 'na', 'NA'), col_types = cols()) %>% 
+  unite(date, year, month, day, sep = '-', remove = F) %>% 
+  filter(!location %in% 'Monterey Wharf') %>% 
   rename(
     Lat = latitude, 
     Long = longitude, 
-    `Water Temperature (C)` = `Water Temperature (<U+00B0>C)`
+    temp = `Water Temperature (<U+00B0>C)`,
+    chla = `Chlorophyll (mg/m3)`,
+    da = `Domoic Acid (ng/mL)`,
+    pntot = `Pseudo-nitzschia Total Cells (cells/L)`,
+    pndel = `Pseudo-nitzschia delicatissima group (cells/L)`,
+    pnser = `Pseudo-nitzschia seriata group (cells/L)`,
+    phosphorus = `Phosphate (uM)`,
+    silicate = `Silicate (uM)`, 
+    nitrate = `Nitrate (uM)`,
+    nitrite = `Nitrite (uM)`,
+    ammonia = `Ammonia (uM)`,
+    depth = `depth (m)`
   ) %>% 
-  unite(date, year, month, day, sep = '-', remove = F) %>% 
   mutate(
+    location = reorder(location, -Lat), # location as factor by latitude
     date = ymd(date),
+    dec_time = decimal_date(date),
     qrt = quarter(date),
-    qrt = factor(qrt, levels = c('1', '2', '3', '4'), labels = c('JFM', 'AMJ', 'JAS', 'OND'), ordered = T)
-  )
-                    
+    qrt = factor(qrt, levels = c('1', '2', '3', '4'), labels = c('JFM', 'AMJ', 'JAS', 'OND'), ordered = T), 
+    din = nitrate + nitrite + ammonia, # din
+    ntop = din / phosphorus, # nitrogen to phosphorus ratio
+    siton = silicate / din, # silicate to nitrogen ratio
+    temp = ifelse(temp < 5, NaN, temp) # remove some temp outliers
+  ) %>% 
+  dplyr::select(-depth)
+
+# get temp anomalies by fitting seasonal model and taking difference
+tsdat <- tsdat %>% 
+  group_by(location) %>% 
+  mutate(
+    tempseas = predict(lm(temp ~ sin(2*pi*dec_time) + cos(2*pi*dec_time), na.action = na.exclude)), 
+    tempanom = temp - tempseas
+  ) %>% 
+  ungroup
+
 save(tsdat, file = here('data', 'tsdat.RData'), compress = 'xz')
