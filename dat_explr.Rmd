@@ -756,9 +756,9 @@ mrgs <- tsdat %>%
 plosall <- mrgsall$frm
 plos <- mrgs$frm
 grid.arrange(
-  arrangeGrob(plosall[[1]], plos[[3]], plos[[4]], plos[[1]], plos[[2]], ncol = 1),
-  arrangeGrob(plosall[[2]], plos[[7]], plos[[8]], plos[[5]], plos[[6]], ncol = 1),
-  arrangeGrob(plosall[[3]], plos[[11]], plos[[12]], plos[[9]], plos[[10]], ncol = 1),
+  arrangeGrob(plosall[[1]], plos[[4]], plos[[1]], plos[[2]], plos[[3]], ncol = 1),
+  arrangeGrob(plosall[[2]], plos[[8]], plos[[5]], plos[[6]], plos[[7]], ncol = 1),
+  arrangeGrob(plosall[[3]], plos[[12]], plos[[9]], plos[[10]], plos[[11]], ncol = 1),
   ncol = 3
 )
 
@@ -896,7 +896,7 @@ tomodall <- tsdat %>%
     `Si:N` = siton, 
     `T,anom` = tempanom
     ) %>% 
-  mutate_at(vars(-`T,anom`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>%
+  mutate_at(vars(-`T,anom`, -`Si:N`, -`N:P`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>%
   as.data.frame %>% 
   imputePCA %>% 
   .$completeObs
@@ -939,7 +939,7 @@ pcamodgrp <- tsdat %>%
           `Si:N` = siton, 
           `T,anom` = tempanom
           ) %>% 
-        mutate_at(vars(-`T,anom`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>% 
+        mutate_at(vars(-`T,anom`, -`Si:N`, -`N:P`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>% 
         as.data.frame %>% 
         imputePCA %>% 
         .$completeObs
