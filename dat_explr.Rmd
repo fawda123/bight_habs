@@ -1209,11 +1209,11 @@ pcamodgrp <- stat_pair %>%
 
 grid.arrange(
   arrangeGrob(
-    p1, pcamodgrp[[3]][[1]], pcamodgrp[[4]][[1]], pcamodgrp[[1]][[1]], pcamodgrp[[2]][[1]],
+    p1, pcamodgrp[[1]][[1]], pcamodgrp[[2]][[1]], pcamodgrp[[3]][[1]], pcamodgrp[[4]][[1]],
     ncol = 1
   ),
   arrangeGrob(
-    p1exp, pcamodgrp[[3]][[2]], pcamodgrp[[4]][[2]], pcamodgrp[[1]][[2]], pcamodgrp[[2]][[2]],
+    p1exp, pcamodgrp[[1]][[2]], pcamodgrp[[2]][[2]], pcamodgrp[[3]][[2]], pcamodgrp[[4]][[2]],
     ncol = 1
   ) ,
   ncol = 2, widths = c(1, 0.6)
