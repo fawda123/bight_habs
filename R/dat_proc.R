@@ -68,7 +68,10 @@ tsdat <- read_csv(here('data/raw', 'SCCOOS shore stations_2008_2019.csv'), na = 
     dec_time = decimal_date(date),
     qrt = quarter(date),
     qrt = factor(qrt, levels = c('1', '2', '3', '4'), labels = c('JFM', 'AMJ', 'JAS', 'OND'), ordered = T), 
-    din = nitrate + nitrite + ammonia, # din
+    din = ifelse(
+      rowSums(cbind(is.na(nitrate), is.na(nitrite), is.na(ammonia))) == 3, NA, 
+      rowSums(cbind(nitrate, nitrite, ammonia), na.rm = T)
+      ), # din, sum all even if NA, unless all NA, then NA
     ntop = din / phosphorus, # nitrogen to phosphorus ratio
     ntop = ifelse(is.infinite(ntop), NA, ntop),
     siton = silicate / din, # silicate to nitrogen ratio
