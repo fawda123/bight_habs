@@ -41,6 +41,11 @@ data(wqdat)
 data(tsdat)
 data(upwell)
 
+# scripps and santa cruz only
+stat_pair <- tsdat %>% 
+  filter(location %in% c('Scripps Pier', 'Santa Cruz Wharf')) %>% 
+  filter(year %in% c(2012:2015))
+
 # all wq data as sf
 tsdatgeo <- tsdat %>% 
   select(location, Long, Lat) %>% 
@@ -503,9 +508,8 @@ Marginal effects plots for logistic models describing HAB response variables:
 
 ```{r, out.height = "100%", fig.height = 8, fig.width = 9, fig.align="center"}
 
-# margin plots
-# all
-mrgsall <- tsdat %>%
+# prep
+prep <- tsdat %>%
   mutate(
     Pn = ifelse(pntot > 100, 1, 0),
     DA = ifelse(da > 0, 1, 0)
@@ -516,7 +520,10 @@ mrgsall <- tsdat %>%
     `Tanom` = tempanom
   ) %>% 
   select(DA, Pn, chla, `Tanom`, upwell, din, phosphorus, `NP`, `SiN`, qrt) %>%
-  gather('resp', 'rsval', DA, Pn, chla) %>%
+  gather('resp', 'rsval', DA, Pn, chla)
+
+# all
+mrgsall <- prep %>% 
   group_by(resp) %>%
   nest %>%
   mutate(
@@ -553,20 +560,8 @@ mrgsall <- tsdat %>%
     })
   )
 
-# margin plots
 # by quarter
-mrgs <- tsdat %>%
-  mutate(
-    Pn = ifelse(pntot > 100, 1, 0),
-    DA = ifelse(da > 0, 1, 0)
-  ) %>%
-  rename(
-    `NP` = ntop,
-    `SiN` = siton,
-    `Tanom` = tempanom
-  ) %>% 
-  select(DA, Pn, chla, `Tanom`, upwell, din, phosphorus, `NP`, `SiN`, qrt) %>%
-  gather('resp', 'rsval', DA, Pn, chla) %>%
+mrgs <- prep %>% 
   group_by(qrt, resp) %>%
   nest %>%
   mutate(
@@ -614,16 +609,14 @@ grid.arrange(
 
 ```
 
-
-
-### Newport Pier
+### Santa Cruz
 
 Histograms of predictors:
 
 ```{r, fig.height = 4.5, fig.width = 10}
 
-tomod <- tsdat %>%
-  filter(location %in% 'Newport Pier') %>% 
+tomod <- stat_pair %>%
+  filter(location %in% 'Santa Cruz Wharf') %>% 
   select(tempanom, upwell, din, phosphorus, ntop, siton) %>%
   rename(
     `N:P` = ntop,
@@ -651,10 +644,9 @@ Marginal effects plots for logistic models describing HAB response variables:
 
 ```{r, out.height = "100%", fig.height = 8, fig.width = 9, fig.align="center"}
 
-# margin plots
-# all
-mrgsall <- tsdat %>%
-  filter(location %in% 'Newport Pier') %>% 
+# prep data
+prep <- stat_pair %>%
+  filter(location %in% 'Santa Cruz Wharf') %>%  
   mutate(
     Pn = ifelse(pntot > 100, 1, 0),
     DA = ifelse(da > 0, 1, 0)
@@ -664,8 +656,148 @@ mrgsall <- tsdat %>%
     `SiN` = siton,
     `Tanom` = tempanom
   ) %>% 
-  select(DA, Pn, chla, `Tanom`, upwell, din, phosphorus, `NP`, `SiN`, qrt) %>%
-  gather('resp', 'rsval', DA, Pn, chla) %>%
+  select(DA, Pn, chla, `Tanom`, upwell, `NP`, `SiN`, qrt) %>%
+  gather('resp', 'rsval', DA, Pn, chla) 
+
+# all
+mrgsall <- prep %>% 
+  group_by(resp) %>%
+  nest %>%
+  mutate(
+    frm = purrr::pmap(list(resp, data), function(resp, data){
+
+      yval <- 'rsval'
+      if(resp == 'chla')
+        yval <- 'log10(rsval)'
+
+      frm <- paste0(yval, ' ~ `Tanom` + upwell + `NP` + `SiN`')
+
+      if(resp %in% c('DA', 'Pn'))
+        mod <- try({glm(frm, data = data, family = binomial(link = "logit"))})
+
+      if(resp %in% 'chla')
+        mod <- try({glm(frm, data = data, family = gaussian(link = "identity"))})
+
+      if(inherits(mod, 'try-error'))
+        return(NA)
+
+      marg <- margins(mod) %>% summary
+
+      p <- ggplot(marg, aes(x = factor, y = AME)) +
+        geom_hline(yintercept = 0, color = 'grey', size = 1) +
+        geom_point(size = 2) + 
+        geom_errorbar(aes(ymin = lower, ymax = upper), width = 0) + 
+        mythm2 + 
+        scale_y_continuous(limits = c(-0.16, 0.15)) +
+        labs(x = NULL, y = 'Margin effect', title = paste(resp, 'all dates', sep = ', ')) + 
+        coord_flip() 
+      
+      return(p)
+
+    })
+  )
+
+# by quarter
+mrgs <- prep %>% 
+  group_by(qrt, resp) %>%
+  nest %>%
+  mutate(
+    frm = purrr::pmap(list(resp, qrt, data), function(resp, qrt, data){
+
+      yval <- 'rsval'
+      if(resp == 'chla')
+        yval <- 'log10(rsval)'
+
+      frm <- paste0(yval, ' ~ `Tanom` + upwell + `NP` + `SiN`')
+
+      if(resp %in% c('DA', 'Pn'))
+        mod <- try({glm(frm, data = data, family = binomial(link = "logit"))})
+
+      if(resp %in% 'chla')
+        mod <- try({glm(frm, data = data, family = gaussian(link = "identity"))})
+
+      if(inherits(mod, 'try-error'))
+        return(NA)
+
+      marg <- margins(mod) %>% summary
+
+      p <- ggplot(marg, aes(x = factor, y = AME)) +
+        geom_hline(yintercept = 0, color = 'grey', size = 1) +
+        geom_point(size = 2) + 
+        geom_errorbar(aes(ymin = lower, ymax = upper), width = 0) + 
+        mythm2 + 
+        scale_y_continuous(limits = c(-0.16, 0.15)) +
+        labs(x = NULL, y = 'Margin effect', title = paste(resp, qrt, sep = ', ')) + 
+        coord_flip() 
+      
+      return(p)
+
+    })
+  )
+
+plosall <- mrgsall$frm
+plos <- mrgs$frm
+grid.arrange(
+  arrangeGrob(plosall[[1]], plos[[3]], plos[[4]], plos[[1]], plos[[2]], ncol = 1),
+  arrangeGrob(plosall[[2]], plos[[7]], plos[[8]], plos[[5]], plos[[6]], ncol = 1),
+  arrangeGrob(plosall[[3]], plos[[11]],plos[[12]], plos[[9]], plos[[10]], ncol = 1),
+  ncol = 3
+)
+
+```
+
+### Scripps
+
+Histograms of predictors:
+
+```{r, fig.height = 4.5, fig.width = 10}
+
+tomod <- stat_pair %>%
+  filter(location %in% 'Scripps Pier') %>% 
+  select(tempanom, upwell, din, phosphorus, ntop, siton) %>%
+  rename(
+    `N:P` = ntop,
+    `Si:N` = siton,
+    `T,anom` = tempanom
+    ) %>%
+  gather('var', 'val', everything())
+
+mythm2 <- theme_bw(base_family = 'serif') +
+  theme(
+    strip.background = element_blank(),
+    text = element_text(family = 'serif', size = 12),
+    strip.placement = 'outside'
+  )
+
+ggplot(tomod, aes(x = val)) +
+  geom_histogram() +
+  facet_wrap(~var, scales = 'free', strip.position = 'bottom') +
+  labs(x = NULL) +
+  mythm2
+
+```
+
+Marginal effects plots for logistic models describing HAB response variables:
+
+```{r, out.height = "100%", fig.height = 8, fig.width = 9, fig.align="center"}
+
+# prep data
+prep <- stat_pair %>%
+  filter(location %in% 'Scripps Pier') %>%  
+  mutate(
+    Pn = ifelse(pntot > 100, 1, 0),
+    DA = ifelse(da > 0, 1, 0)
+  ) %>%
+  rename(
+    `NP` = ntop,
+    `SiN` = siton,
+    `Tanom` = tempanom
+  ) %>% 
+  select(DA, Pn, chla, `Tanom`, upwell, `NP`, `SiN`, qrt) %>%
+  gather('resp', 'rsval', DA, Pn, chla) 
+
+# all
+mrgsall <- prep %>% 
   group_by(resp) %>%
   nest %>%
   mutate(
@@ -702,21 +834,8 @@ mrgsall <- tsdat %>%
     })
   )
 
-# margin plots
 # by quarter
-mrgs <- tsdat %>%
-  filter(location %in% 'Newport Pier') %>% 
-  mutate(
-    Pn = ifelse(pntot > 100, 1, 0),
-    DA = ifelse(da > 0, 1, 0)
-  ) %>%
-  rename(
-    `NP` = ntop,
-    `SiN` = siton,
-    `Tanom` = tempanom
-  ) %>% 
-  select(DA, Pn, chla, `Tanom`, upwell, din, phosphorus, `NP`, `SiN`, qrt) %>%
-  gather('resp', 'rsval', DA, Pn, chla) %>%
+mrgs <- prep %>% 
   group_by(qrt, resp) %>%
   nest %>%
   mutate(
@@ -756,14 +875,13 @@ mrgs <- tsdat %>%
 plosall <- mrgsall$frm
 plos <- mrgs$frm
 grid.arrange(
-  arrangeGrob(plosall[[1]], plos[[4]], plos[[1]], plos[[2]], plos[[3]], ncol = 1),
-  arrangeGrob(plosall[[2]], plos[[8]], plos[[5]], plos[[6]], plos[[7]], ncol = 1),
-  arrangeGrob(plosall[[3]], plos[[12]], plos[[9]], plos[[10]], plos[[11]], ncol = 1),
+  arrangeGrob(plosall[[1]], plos[[3]], plos[[4]], plos[[1]], plos[[2]], ncol = 1),
+  arrangeGrob(plosall[[2]], plos[[7]], plos[[8]], plos[[5]], plos[[6]], ncol = 1),
+  arrangeGrob(plosall[[3]], plos[[11]], plos[[12]], plos[[9]], plos[[10]], ncol = 1),
   ncol = 3
 )
 
 ```
-
 
 ## Multivariate analyses {.tabset .tabset-pills}
 
@@ -989,3 +1107,117 @@ grid.arrange(
 )
 
 ```
+
+### PCA Santa Cruz and Scripps
+
+```{r, out.height = "100%", fig.height = 17, fig.width = 8, fig.align="center"}
+
+dimymax <- 45
+mythm2 <- theme_bw(base_family = 'serif') +
+  theme(
+    strip.background = element_blank(), 
+    text = element_text(family = 'serif', size = 12)
+  ) 
+
+# all dates
+tomodall <- stat_pair %>% 
+  select(chla, da, pntot, ntop, siton, upwell, tempanom) %>% 
+  rename(
+    `N:P` = ntop, 
+    `Si:N` = siton, 
+    `T,anom` = tempanom
+    ) %>% 
+  mutate_at(vars(-`T,anom`, -`Si:N`, -`N:P`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>%
+  as.data.frame %>% 
+  imputePCA %>% 
+  .$completeObs
+  
+pcamod <- PCA(tomodall, scale.unit = T, graph = F)
+
+# all time series
+p1 <- ggord(pcamod, grp_in = stat_pair$location, size = stat_pair$Lat, vec_ext = 6, alpha = 0.5, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
+  mythm2 +
+  ggtitle('All dates') + 
+  scale_size(range = c(0.3, 1.5))
+
+# explained variance by dimensions
+p1exp <- pcamod %>% 
+  .$eig %>% 
+  data.frame %>% 
+  rownames_to_column() %>% 
+  rename(vrs = percentage.of.variance) %>% 
+  mutate(rowname = gsub('comp\\s', '', rowname)) %>% 
+  # .[1:3, ] %>% 
+  ggplot(aes(x = rowname, y = vrs, fill = vrs)) + 
+  geom_bar(stat = 'identity') + 
+  labs(x = 'Dimension', y = '% variance') + 
+  scale_y_continuous(limits = c(0, dimymax)) + 
+  scale_fill_gradient(limits = c(0, dimymax), low = 'tomato1', high = 'lightgreen', guide = F) +
+  ggtitle('All dates') + 
+  mythm2
+
+# by season
+pcamodgrp <- stat_pair %>% 
+  group_by(qrt) %>% 
+  nest %>% 
+  mutate(
+    plo = purrr::pmap(list(qrt, data), function(qrt, data){
+      
+      tomod <- data %>% 
+        select(chla, da, pntot, ntop, siton, tempanom, upwell) %>% 
+        rename(
+          `N:P` = ntop, 
+          `Si:N` = siton, 
+          `T,anom` = tempanom
+          ) %>% 
+        mutate_at(vars(-`T,anom`, -`Si:N`, -`N:P`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>% 
+        as.data.frame %>% 
+        imputePCA %>% 
+        .$completeObs
+  
+      pcamod <- PCA(tomod, scale.unit = T, graph = F)
+
+      # ggord
+      p1 <- ggord(pcamod, grp_in = data$location, vec_ext = 6, alpha = 0.5, size = data$Lat, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
+        mythm2 +
+        ggtitle(qrt)+ 
+        scale_size(range = c(0.3, 1.5))
+  
+      # explained variance by dimensions
+      p2 <- pcamod %>% 
+        .$eig %>% 
+        data.frame %>% 
+        rownames_to_column() %>%
+        rename(vrs = percentage.of.variance) %>% 
+        mutate(rowname = gsub('comp\\s', '', rowname)) %>% 
+        # .[1:3, ] %>% 
+        ggplot(aes(x = rowname, y = vrs, fill = vrs)) + 
+        geom_bar(stat = 'identity') + 
+        labs(x = 'Dimension', y = '% variance') + 
+        scale_y_continuous(limits = c(0, dimymax)) + 
+        scale_fill_gradient(limits = c(0, dimymax), low = 'tomato1', high = 'lightgreen', guide = F) + 
+        ggtitle(qrt) + 
+        mythm2
+    
+      out <- list(p1, p2)
+      
+      return(out)
+      
+    })
+  ) %>% 
+  pull(plo)
+
+grid.arrange(
+  arrangeGrob(
+    p1, pcamodgrp[[3]][[1]], pcamodgrp[[4]][[1]], pcamodgrp[[1]][[1]], pcamodgrp[[2]][[1]],
+    ncol = 1
+  ),
+  arrangeGrob(
+    p1exp, pcamodgrp[[3]][[2]], pcamodgrp[[4]][[2]], pcamodgrp[[1]][[2]], pcamodgrp[[2]][[2]],
+    ncol = 1
+  ) ,
+  ncol = 2, widths = c(1, 0.6)
+)
+
+```
+
