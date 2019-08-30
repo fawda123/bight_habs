@@ -24,6 +24,7 @@ library(missMDA)
 library(vegan)
 library(ggord)
 library(scales)
+library(margins)
 
 prj <- 4326 # wgs84
 
@@ -466,82 +467,302 @@ grid.arrange(
 )
 ```
 
-<!-- ## Bivariate comparisons {.tabset .tabset-pills} -->
+## Linear models {.tabset .tabset-pills}
 
-<!-- Histograms of predictors -->
+### All stations
 
-<!-- ```{r, fig.height = 6, fig.width = 11} -->
+Histograms of predictors:
 
-<!-- tomod <- tsdat %>% -->
-<!--   select(tempanom, upwell, din, phosphorus, ntop, siton) %>%  -->
-<!--   rename( -->
-<!--     `N:P` = ntop,  -->
-<!--     `Si:N` = siton,  -->
-<!--     `T,anom` = tempanom -->
-<!--     ) %>%  -->
-<!--   gather('var', 'val', everything()) -->
+```{r, fig.height = 4.5, fig.width = 10}
 
-<!-- ggplot(tomod, aes(x = val)) +  -->
-<!--   geom_histogram() +  -->
-<!--   facet_wrap(~var, scales = 'free', strip.position = 'bottom') +   -->
-<!--   labs(x = NULL) +  -->
-<!--   mythm2 -->
+tomod <- tsdat %>%
+  select(tempanom, upwell, din, phosphorus, ntop, siton) %>%
+  rename(
+    `N:P` = ntop,
+    `Si:N` = siton,
+    `T,anom` = tempanom
+    ) %>%
+  gather('var', 'val', everything())
 
-<!-- ``` -->
+mythm2 <- theme_bw(base_family = 'serif') +
+  theme(
+    strip.background = element_blank(),
+    text = element_text(family = 'serif', size = 12),
+    strip.placement = 'outside'
+  )
 
-<!-- ```{r, out.height = "100%", fig.height = 17, fig.width = 8, fig.align="center"} -->
-<!-- mythm2 <- theme_bw(base_family = 'serif') + -->
-<!--   theme( -->
-<!--     strip.background = element_blank(),  -->
-<!--     text = element_text(family = 'serif', size = 12),  -->
-<!--     strip.placement = 'outside' -->
-<!--   )  -->
+ggplot(tomod, aes(x = val)) +
+  geom_histogram() +
+  facet_wrap(~var, scales = 'free', strip.position = 'bottom') +
+  labs(x = NULL) +
+  mythm2
 
-<!-- tomod <- tsdat %>% -->
-<!--   mutate( -->
-<!--     pnhilo = ifelse(pntot > 100, 1, 0),  -->
-<!--     dapa = ifelse(da > 0, 1, 0) -->
-<!--   ) %>%  -->
-<!--   select(dapa, pnhilo, chla, tempanom, upwell, din, phosphorus, ntop, siton, location) %>%  -->
-<!--   gather('resp', 'rsval', dapa, pnhilo, chla) %>%  -->
-<!--   group_by(location, resp) %>%  -->
-<!--   nest %>%  -->
-<!--   mutate( -->
-<!--     frm = purrr::pmap(list(resp, data), function(resp, data){ -->
+```
 
-<!--       yval <- 'rsval' -->
-<!--       if(resp == 'chla') -->
-<!--         yval <- 'log10(rsval)' -->
+Marginal effects plots for logistic models describing HAB response variables:
 
-<!--       frm <- paste0(yval, ' ~ log10(din) + log10(phosphorus) + ntop + siton + tempanom + upwell') -->
+```{r, out.height = "100%", fig.height = 8, fig.width = 9, fig.align="center"}
 
-<!--       if(resp %in% c('dapa', 'pnhilo')) -->
-<!--         mod <- try({glm(frm, data = data, family = binomial(link = "logit"))}) -->
+# margin plots
+# all
+mrgsall <- tsdat %>%
+  mutate(
+    Pn = ifelse(pntot > 100, 1, 0),
+    DA = ifelse(da > 0, 1, 0)
+  ) %>%
+  rename(
+    `NP` = ntop,
+    `SiN` = siton,
+    `Tanom` = tempanom
+  ) %>% 
+  select(DA, Pn, chla, `Tanom`, upwell, din, phosphorus, `NP`, `SiN`, qrt) %>%
+  gather('resp', 'rsval', DA, Pn, chla) %>%
+  group_by(resp) %>%
+  nest %>%
+  mutate(
+    frm = purrr::pmap(list(resp, data), function(resp, data){
 
-<!--       if(resp %in% 'chla') -->
-<!--         mod <- try({glm(frm, data = data, family = gaussian(link = "identity"))}) -->
+      yval <- 'rsval'
+      if(resp == 'chla')
+        yval <- 'log10(rsval)'
 
-<!--       if(inherits(mod, 'try-error')) -->
-<!--         return(NA) -->
+      frm <- paste0(yval, ' ~ `Tanom` + upwell + `NP` + `SiN`')
 
-<!--       out <- margins(mod) %>% summary -->
+      if(resp %in% c('DA', 'Pn'))
+        mod <- try({glm(frm, data = data, family = binomial(link = "logit"))})
 
-<!--       return(out) -->
+      if(resp %in% 'chla')
+        mod <- try({glm(frm, data = data, family = gaussian(link = "identity"))})
 
-<!--     }) -->
+      if(inherits(mod, 'try-error'))
+        return(NA)
 
-<!--   ) -->
+      marg <- margins(mod) %>% summary
+
+      p <- ggplot(marg, aes(x = factor, y = AME)) +
+        geom_hline(yintercept = 0, color = 'grey', size = 1) +
+        geom_point(size = 2) + 
+        geom_errorbar(aes(ymin = lower, ymax = upper), width = 0) + 
+        mythm2 + 
+        scale_y_continuous(limits = c(-0.12, 0.06)) +
+        labs(x = NULL, y = 'Margin effect', title = paste(resp, 'all dates', sep = ', ')) + 
+        coord_flip() 
+      
+      return(p)
+
+    })
+  )
+
+# margin plots
+# by quarter
+mrgs <- tsdat %>%
+  mutate(
+    Pn = ifelse(pntot > 100, 1, 0),
+    DA = ifelse(da > 0, 1, 0)
+  ) %>%
+  rename(
+    `NP` = ntop,
+    `SiN` = siton,
+    `Tanom` = tempanom
+  ) %>% 
+  select(DA, Pn, chla, `Tanom`, upwell, din, phosphorus, `NP`, `SiN`, qrt) %>%
+  gather('resp', 'rsval', DA, Pn, chla) %>%
+  group_by(qrt, resp) %>%
+  nest %>%
+  mutate(
+    frm = purrr::pmap(list(resp, qrt, data), function(resp, qrt, data){
+
+      yval <- 'rsval'
+      if(resp == 'chla')
+        yval <- 'log10(rsval)'
+
+      frm <- paste0(yval, ' ~ `Tanom` + upwell + `NP` + `SiN`')
+
+      if(resp %in% c('DA', 'Pn'))
+        mod <- try({glm(frm, data = data, family = binomial(link = "logit"))})
+
+      if(resp %in% 'chla')
+        mod <- try({glm(frm, data = data, family = gaussian(link = "identity"))})
+
+      if(inherits(mod, 'try-error'))
+        return(NA)
+
+      marg <- margins(mod) %>% summary
+
+      p <- ggplot(marg, aes(x = factor, y = AME)) +
+        geom_hline(yintercept = 0, color = 'grey', size = 1) +
+        geom_point(size = 2) + 
+        geom_errorbar(aes(ymin = lower, ymax = upper), width = 0) + 
+        mythm2 + 
+        scale_y_continuous(limits = c(-0.12, 0.06)) +
+        labs(x = NULL, y = 'Margin effect', title = paste(resp, qrt, sep = ', ')) + 
+        coord_flip() 
+      
+      return(p)
+
+    })
+  )
+
+plosall <- mrgsall$frm
+plos <- mrgs$frm
+grid.arrange(
+  arrangeGrob(plosall[[1]], plos[[3]], plos[[4]], plos[[1]], plos[[2]], ncol = 1),
+  arrangeGrob(plosall[[2]], plos[[7]], plos[[8]], plos[[5]], plos[[6]], ncol = 1),
+  arrangeGrob(plosall[[3]], plos[[11]], plos[[12]], plos[[9]], plos[[10]], ncol = 1),
+  ncol = 3
+)
+
+```
 
 
-<!-- #  -->
-<!-- # p1 <- ggplot(toplo, aes(x = tempanom, y = da)) +  -->
-<!-- #   geom_point(alpha = 0.5) +  -->
-<!-- #   geom_smooth(method = 'lm', se = F, linetype = 'dotted', col = 'red') +  -->
-<!-- #   facet_wrap(~ location, ncol = 1) +  -->
-<!-- #   scale_y_log10() +  -->
-<!-- #   mythm2 -->
 
-<!-- ``` -->
+### Newport Pier
+
+Histograms of predictors:
+
+```{r, fig.height = 4.5, fig.width = 10}
+
+tomod <- tsdat %>%
+  filter(location %in% 'Newport Pier') %>% 
+  select(tempanom, upwell, din, phosphorus, ntop, siton) %>%
+  rename(
+    `N:P` = ntop,
+    `Si:N` = siton,
+    `T,anom` = tempanom
+    ) %>%
+  gather('var', 'val', everything())
+
+mythm2 <- theme_bw(base_family = 'serif') +
+  theme(
+    strip.background = element_blank(),
+    text = element_text(family = 'serif', size = 12),
+    strip.placement = 'outside'
+  )
+
+ggplot(tomod, aes(x = val)) +
+  geom_histogram() +
+  facet_wrap(~var, scales = 'free', strip.position = 'bottom') +
+  labs(x = NULL) +
+  mythm2
+
+```
+
+Marginal effects plots for logistic models describing HAB response variables:
+
+```{r, out.height = "100%", fig.height = 8, fig.width = 9, fig.align="center"}
+
+# margin plots
+# all
+mrgsall <- tsdat %>%
+  filter(location %in% 'Newport Pier') %>% 
+  mutate(
+    Pn = ifelse(pntot > 100, 1, 0),
+    DA = ifelse(da > 0, 1, 0)
+  ) %>%
+  rename(
+    `NP` = ntop,
+    `SiN` = siton,
+    `Tanom` = tempanom
+  ) %>% 
+  select(DA, Pn, chla, `Tanom`, upwell, din, phosphorus, `NP`, `SiN`, qrt) %>%
+  gather('resp', 'rsval', DA, Pn, chla) %>%
+  group_by(resp) %>%
+  nest %>%
+  mutate(
+    frm = purrr::pmap(list(resp, data), function(resp, data){
+
+      yval <- 'rsval'
+      if(resp == 'chla')
+        yval <- 'log10(rsval)'
+
+      frm <- paste0(yval, ' ~ `Tanom` + upwell + `NP` + `SiN`')
+
+      if(resp %in% c('DA', 'Pn'))
+        mod <- try({glm(frm, data = data, family = binomial(link = "logit"))})
+
+      if(resp %in% 'chla')
+        mod <- try({glm(frm, data = data, family = gaussian(link = "identity"))})
+
+      if(inherits(mod, 'try-error'))
+        return(NA)
+
+      marg <- margins(mod) %>% summary
+
+      p <- ggplot(marg, aes(x = factor, y = AME)) +
+        geom_hline(yintercept = 0, color = 'grey', size = 1) +
+        geom_point(size = 2) + 
+        geom_errorbar(aes(ymin = lower, ymax = upper), width = 0) + 
+        mythm2 + 
+        scale_y_continuous(limits = c(-0.16, 0.08)) +
+        labs(x = NULL, y = 'Margin effect', title = paste(resp, 'all dates', sep = ', ')) + 
+        coord_flip() 
+      
+      return(p)
+
+    })
+  )
+
+# margin plots
+# by quarter
+mrgs <- tsdat %>%
+  filter(location %in% 'Newport Pier') %>% 
+  mutate(
+    Pn = ifelse(pntot > 100, 1, 0),
+    DA = ifelse(da > 0, 1, 0)
+  ) %>%
+  rename(
+    `NP` = ntop,
+    `SiN` = siton,
+    `Tanom` = tempanom
+  ) %>% 
+  select(DA, Pn, chla, `Tanom`, upwell, din, phosphorus, `NP`, `SiN`, qrt) %>%
+  gather('resp', 'rsval', DA, Pn, chla) %>%
+  group_by(qrt, resp) %>%
+  nest %>%
+  mutate(
+    frm = purrr::pmap(list(resp, qrt, data), function(resp, qrt, data){
+
+      yval <- 'rsval'
+      if(resp == 'chla')
+        yval <- 'log10(rsval)'
+
+      frm <- paste0(yval, ' ~ `Tanom` + upwell + `NP` + `SiN`')
+
+      if(resp %in% c('DA', 'Pn'))
+        mod <- try({glm(frm, data = data, family = binomial(link = "logit"))})
+
+      if(resp %in% 'chla')
+        mod <- try({glm(frm, data = data, family = gaussian(link = "identity"))})
+
+      if(inherits(mod, 'try-error'))
+        return(NA)
+
+      marg <- margins(mod) %>% summary
+
+      p <- ggplot(marg, aes(x = factor, y = AME)) +
+        geom_hline(yintercept = 0, color = 'grey', size = 1) +
+        geom_point(size = 2) + 
+        geom_errorbar(aes(ymin = lower, ymax = upper), width = 0) + 
+        mythm2 + 
+        scale_y_continuous(limits = c(-0.16, 0.08)) +
+        labs(x = NULL, y = 'Margin effect', title = paste(resp, qrt, sep = ', ')) + 
+        coord_flip() 
+      
+      return(p)
+
+    })
+  )
+
+plosall <- mrgsall$frm
+plos <- mrgs$frm
+grid.arrange(
+  arrangeGrob(plosall[[1]], plos[[3]], plos[[4]], plos[[1]], plos[[2]], ncol = 1),
+  arrangeGrob(plosall[[2]], plos[[7]], plos[[8]], plos[[5]], plos[[6]], ncol = 1),
+  arrangeGrob(plosall[[3]], plos[[11]], plos[[12]], plos[[9]], plos[[10]], ncol = 1),
+  ncol = 3
+)
+
+```
 
 
 ## Multivariate analyses {.tabset .tabset-pills}
