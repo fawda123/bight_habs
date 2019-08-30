@@ -70,7 +70,9 @@ tsdat <- read_csv(here('data/raw', 'SCCOOS shore stations_2008_2019.csv'), na = 
     qrt = factor(qrt, levels = c('1', '2', '3', '4'), labels = c('JFM', 'AMJ', 'JAS', 'OND'), ordered = T), 
     din = nitrate + nitrite + ammonia, # din
     ntop = din / phosphorus, # nitrogen to phosphorus ratio
+    ntop = ifelse(is.infinite(ntop), NA, ntop),
     siton = silicate / din, # silicate to nitrogen ratio
+    siton = ifelse(is.infinite(siton), NA, siton),
     temp = ifelse(temp < 5, NaN, temp) # remove some temp outliers
   ) %>% 
   dplyr::select(-depth)
@@ -86,26 +88,6 @@ tsdat <- tsdat %>%
 
 # upwelling index data
 # https://oceanview.pfeg.noaa.gov/products/upwelling/dnld
-
-# locations of upwelling estimates
-locs <- tibble(
-    lat = c(60, 60, 57, 54, 51, 48, 45, 42, 39, 36, 33, 30, 27, 24, 21),
-    lon = c(149, 146, 137, 134, 131, 125, 125, 125, 125, 122, 119, 119, 116, 113, 107),
-    stat = seq(1:15)
-  ) %>% 
-  mutate(lon = -1 * lon) %>% 
-  st_as_sf(coords = c('lon', 'lat'), crs = prj)
-
-# habs monitoring station locations
-# st_nearest_feature gets index of nearest station in locs
-tsstat <- tsdat %>% 
-  select(location, Long, Lat) %>% 
-  unique %>% 
-  st_as_sf(., coords = c('Long', 'Lat'), crs = prj) %>% 
-  mutate(
-    stat = st_nearest_feature(., locs)
-  ) %>% 
-  st_set_geometry(NULL)
 
 # get upwelling data for stations 10, 11
 upwell <- tibble(
@@ -137,6 +119,28 @@ upwell <- tibble(
   ) %>% 
   ungroup %>% 
   select(-url)
+
+save(upwell, file = here('data', 'upwell.RData'), compress = 'xz')
+
+# locations of upwelling estimates
+locs <- tibble(
+    lat = c(60, 60, 57, 54, 51, 48, 45, 42, 39, 36, 33, 30, 27, 24, 21),
+    lon = c(149, 146, 137, 134, 131, 125, 125, 125, 125, 122, 119, 119, 116, 113, 107),
+    stat = seq(1:15)
+  ) %>% 
+  mutate(lon = -1 * lon) %>% 
+  st_as_sf(coords = c('lon', 'lat'), crs = prj)
+
+# habs monitoring station locations
+# st_nearest_feature gets index of nearest station in locs
+tsstat <- tsdat %>% 
+  select(location, Long, Lat) %>% 
+  unique %>% 
+  st_as_sf(., coords = c('Long', 'Lat'), crs = prj) %>% 
+  mutate(
+    stat = st_nearest_feature(., locs)
+  ) %>% 
+  st_set_geometry(NULL)
 
 # join ts and station data with upwelling data
 tsstat <- tsstat %>% 

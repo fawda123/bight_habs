@@ -38,6 +38,7 @@ pbase <- theme_bw(base_family = 'serif', base_size = 14) +
 
 data(wqdat)
 data(tsdat)
+data(upwell)
 
 # all wq data as sf
 tsdatgeo <- tsdat %>% 
@@ -220,6 +221,46 @@ p2 <- ggplot(tsdat, aes(x = date)) +
   geom_hline(yintercept = 0, color = 'red') +
   facet_wrap(~location, ncol = 1) +
   labs(y = 'Anomalies (C)') + 
+  scale_colour_gradient2(low = 'tomato1', mid = 'lightgreen', high = 'tomato1', midpoint= 0) + 
+  pthm
+
+p1 + p2 + plot_layout(ncol = 2)
+```
+
+Upwelling: 
+
+```{r, fig.height = 4 , fig.width = 12}
+
+toplo <- unnest(upwell) %>% 
+  filter(year(date) >= 2008) %>% 
+  mutate(dec_time = decimal_date(date)) %>% 
+  group_by(stat) %>% 
+  rename(upwell = ind) %>% 
+  mutate(
+    upwellseas = predict(lm(upwell ~ sin(2*pi*dec_time) + cos(2*pi*dec_time), na.action = na.exclude)), 
+    upwellanom = upwell - upwellseas
+  ) %>% 
+  ungroup
+
+pthm <- theme_bw(base_family = 'serif') + 
+  theme(
+    strip.background = element_blank(), 
+    axis.title.x = element_blank(),
+    legend.position = 'none'
+  )
+
+p1 <- ggplot(toplo, aes(x = date)) + 
+  geom_line(aes(y = upwell)) +
+  geom_line(aes(y = upwellseas), colour = 'red') + 
+  facet_wrap(~stat, ncol = 1) + 
+  labs(y = 'Upwelling (m3/s/100m)') +
+  pthm
+
+p2 <- ggplot(toplo, aes(x = date)) + 
+  geom_segment(aes(y = 0, yend = upwellanom, xend = date, colour = upwellanom)) +  
+  geom_hline(yintercept = 0, color = 'red') +
+  facet_wrap(~stat, ncol = 1) +
+  labs(y = 'Anomalies') + 
   scale_colour_gradient2(low = 'tomato1', mid = 'lightgreen', high = 'tomato1', midpoint= 0) + 
   pthm
 
@@ -425,12 +466,91 @@ grid.arrange(
 )
 ```
 
+<!-- ## Bivariate comparisons {.tabset .tabset-pills} -->
+
+<!-- Histograms of predictors -->
+
+<!-- ```{r, fig.height = 6, fig.width = 11} -->
+
+<!-- tomod <- tsdat %>% -->
+<!--   select(tempanom, upwell, din, phosphorus, ntop, siton) %>%  -->
+<!--   rename( -->
+<!--     `N:P` = ntop,  -->
+<!--     `Si:N` = siton,  -->
+<!--     `T,anom` = tempanom -->
+<!--     ) %>%  -->
+<!--   gather('var', 'val', everything()) -->
+
+<!-- ggplot(tomod, aes(x = val)) +  -->
+<!--   geom_histogram() +  -->
+<!--   facet_wrap(~var, scales = 'free', strip.position = 'bottom') +   -->
+<!--   labs(x = NULL) +  -->
+<!--   mythm2 -->
+
+<!-- ``` -->
+
+<!-- ```{r, out.height = "100%", fig.height = 17, fig.width = 8, fig.align="center"} -->
+<!-- mythm2 <- theme_bw(base_family = 'serif') + -->
+<!--   theme( -->
+<!--     strip.background = element_blank(),  -->
+<!--     text = element_text(family = 'serif', size = 12),  -->
+<!--     strip.placement = 'outside' -->
+<!--   )  -->
+
+<!-- tomod <- tsdat %>% -->
+<!--   mutate( -->
+<!--     pnhilo = ifelse(pntot > 100, 1, 0),  -->
+<!--     dapa = ifelse(da > 0, 1, 0) -->
+<!--   ) %>%  -->
+<!--   select(dapa, pnhilo, chla, tempanom, upwell, din, phosphorus, ntop, siton, location) %>%  -->
+<!--   gather('resp', 'rsval', dapa, pnhilo, chla) %>%  -->
+<!--   group_by(location, resp) %>%  -->
+<!--   nest %>%  -->
+<!--   mutate( -->
+<!--     frm = purrr::pmap(list(resp, data), function(resp, data){ -->
+
+<!--       yval <- 'rsval' -->
+<!--       if(resp == 'chla') -->
+<!--         yval <- 'log10(rsval)' -->
+
+<!--       frm <- paste0(yval, ' ~ log10(din) + log10(phosphorus) + ntop + siton + tempanom + upwell') -->
+
+<!--       if(resp %in% c('dapa', 'pnhilo')) -->
+<!--         mod <- try({glm(frm, data = data, family = binomial(link = "logit"))}) -->
+
+<!--       if(resp %in% 'chla') -->
+<!--         mod <- try({glm(frm, data = data, family = gaussian(link = "identity"))}) -->
+
+<!--       if(inherits(mod, 'try-error')) -->
+<!--         return(NA) -->
+
+<!--       out <- margins(mod) %>% summary -->
+
+<!--       return(out) -->
+
+<!--     }) -->
+
+<!--   ) -->
+
+
+<!-- #  -->
+<!-- # p1 <- ggplot(toplo, aes(x = tempanom, y = da)) +  -->
+<!-- #   geom_point(alpha = 0.5) +  -->
+<!-- #   geom_smooth(method = 'lm', se = F, linetype = 'dotted', col = 'red') +  -->
+<!-- #   facet_wrap(~ location, ncol = 1) +  -->
+<!-- #   scale_y_log10() +  -->
+<!-- #   mythm2 -->
+
+<!-- ``` -->
+
+
 ## Multivariate analyses {.tabset .tabset-pills}
 
-### PCA
+### PCA round 1
 
-```{r, out.height = "100%", fig.height = 17, fig.width = 6, fig.align="center"}
+```{r, out.height = "100%", fig.height = 17, fig.width = 8, fig.align="center"}
 
+dimymax <- 45
 mythm2 <- theme_bw(base_family = 'serif') +
   theme(
     strip.background = element_blank(), 
@@ -440,23 +560,40 @@ mythm2 <- theme_bw(base_family = 'serif') +
 # all dates
 tomodall <- tsdat %>% 
   mutate(
-    temp = ifelse(temp == 0, NA, temp),
-    nitrate = ifelse(nitrate < 0, 0, nitrate)
+    temp = ifelse(temp == 0, NA, temp)
     ) %>% 
-  select(ammonia, chla, da, nitrate, nitrite, phosphorus, pntot, silicate, temp) %>% 
-  mutate_at(vars(-temp), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>%
+  select(chla, da, din, phosphorus, pntot, silicate, temp) %>% 
+  rename(`T` = temp) %>% 
+  mutate_at(vars(-`T`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>%
   as.data.frame %>% 
   imputePCA %>% 
   .$completeObs
   
 pcamod <- PCA(tomodall, scale.unit = T, graph = F)
 
+# all time series
 p1 <- ggord(pcamod, size = tsdat$Lat, vec_ext = 6, alpha = 0.5, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
   mythm2 +
   ggtitle('All dates') + 
   scale_size(range = c(0.3, 1.5))
 
+# explained variance by dimensions
+p1exp <- pcamod %>% 
+  .$eig %>% 
+  data.frame %>% 
+  rownames_to_column() %>% 
+  rename(vrs = percentage.of.variance) %>% 
+  mutate(rowname = gsub('comp\\s', '', rowname)) %>% 
+  # .[1:3, ] %>% 
+  ggplot(aes(x = rowname, y = vrs, fill = vrs)) + 
+  geom_bar(stat = 'identity') + 
+  labs(x = 'Dimension', y = '% variance') + 
+  scale_y_continuous(limits = c(0, dimymax)) + 
+  scale_fill_gradient(limits = c(0, dimymax), low = 'tomato1', high = 'lightgreen', guide = F) +
+  ggtitle('All dates') + 
+  mythm2
 
+# by season
 pcamodgrp <- tsdat %>% 
   group_by(qrt) %>% 
   nest %>% 
@@ -465,31 +602,169 @@ pcamodgrp <- tsdat %>%
       
       tomod <- data %>% 
         mutate(
-          temp = ifelse(temp == 0, NA, temp),
-          nitrate = ifelse(nitrate < 0, 0, nitrate)
+          temp = ifelse(temp == 0, NA, temp)
           ) %>% 
-        select(ammonia, chla, da, nitrate, nitrite, phosphorus, pntot, silicate, temp) %>% 
-        mutate_at(vars(-temp), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>% 
+        select(chla, da, din, phosphorus, pntot, silicate, temp) %>% 
+        rename(`T` = temp) %>% 
+        mutate_at(vars(-`T`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>% 
         as.data.frame %>% 
         imputePCA %>% 
         .$completeObs
   
       pcamod <- PCA(tomod, scale.unit = T, graph = F)
 
-      p <- ggord(pcamod, vec_ext = 6, alpha = 0.5, size = data$Lat, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
+      # ggord
+      p1 <- ggord(pcamod, vec_ext = 6, alpha = 0.5, size = data$Lat, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
         mythm2 +
         ggtitle(qrt)+ 
         scale_size(range = c(0.3, 1.5))
+  
+      # explained variance by dimensions
+      p2 <- pcamod %>% 
+        .$eig %>% 
+        data.frame %>% 
+        rownames_to_column() %>%
+        rename(vrs = percentage.of.variance) %>% 
+        mutate(rowname = gsub('comp\\s', '', rowname)) %>% 
+        # .[1:3, ] %>% 
+        ggplot(aes(x = rowname, y = vrs, fill = vrs)) + 
+        geom_bar(stat = 'identity') + 
+        labs(x = 'Dimension', y = '% variance') + 
+        scale_y_continuous(limits = c(0, dimymax)) + 
+        scale_fill_gradient(limits = c(0, dimymax), low = 'tomato1', high = 'lightgreen', guide = F) + 
+        ggtitle(qrt) + 
+        mythm2
+    
+      out <- list(p1, p2)
       
-      return(p)
+      return(out)
       
     })
   ) %>% 
   pull(plo)
 
 grid.arrange(
-  p1, pcamodgrp[[3]], pcamodgrp[[4]], pcamodgrp[[1]], pcamodgrp[[2]], 
-  ncol = 1
+  arrangeGrob(
+    p1, pcamodgrp[[3]][[1]], pcamodgrp[[4]][[1]], pcamodgrp[[1]][[1]], pcamodgrp[[2]][[1]],
+    ncol = 1
+  ),
+  arrangeGrob(
+    p1exp, pcamodgrp[[3]][[2]], pcamodgrp[[4]][[2]], pcamodgrp[[1]][[2]], pcamodgrp[[2]][[2]],
+    ncol = 1
+  ) ,
+  ncol = 2, widths = c(1, 0.8)
+)
+```
+
+### PCA round 2
+
+```{r, out.height = "100%", fig.height = 17, fig.width = 8, fig.align="center"}
+
+dimymax <- 45
+mythm2 <- theme_bw(base_family = 'serif') +
+  theme(
+    strip.background = element_blank(), 
+    text = element_text(family = 'serif', size = 12)
+  ) 
+
+# all dates
+tomodall <- tsdat %>% 
+  select(chla, da, pntot, ntop, siton, upwell, tempanom) %>% 
+  rename(
+    `N:P` = ntop, 
+    `Si:N` = siton, 
+    `T,anom` = tempanom
+    ) %>% 
+  mutate_at(vars(-`T,anom`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>%
+  as.data.frame %>% 
+  imputePCA %>% 
+  .$completeObs
+  
+pcamod <- PCA(tomodall, scale.unit = T, graph = F)
+
+# all time series
+p1 <- ggord(pcamod, size = tsdat$Lat, vec_ext = 6, alpha = 0.5, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
+  mythm2 +
+  ggtitle('All dates') + 
+  scale_size(range = c(0.3, 1.5))
+
+# explained variance by dimensions
+p1exp <- pcamod %>% 
+  .$eig %>% 
+  data.frame %>% 
+  rownames_to_column() %>% 
+  rename(vrs = percentage.of.variance) %>% 
+  mutate(rowname = gsub('comp\\s', '', rowname)) %>% 
+  # .[1:3, ] %>% 
+  ggplot(aes(x = rowname, y = vrs, fill = vrs)) + 
+  geom_bar(stat = 'identity') + 
+  labs(x = 'Dimension', y = '% variance') + 
+  scale_y_continuous(limits = c(0, dimymax)) + 
+  scale_fill_gradient(limits = c(0, dimymax), low = 'tomato1', high = 'lightgreen', guide = F) +
+  ggtitle('All dates') + 
+  mythm2
+
+# by season
+pcamodgrp <- tsdat %>% 
+  group_by(qrt) %>% 
+  nest %>% 
+  mutate(
+    plo = purrr::pmap(list(qrt, data), function(qrt, data){
+      
+      tomod <- data %>% 
+        select(chla, da, pntot, ntop, siton, tempanom, upwell) %>% 
+        rename(
+          `N:P` = ntop, 
+          `Si:N` = siton, 
+          `T,anom` = tempanom
+          ) %>% 
+        mutate_at(vars(-`T,anom`), decostand, method = 'log', MARGIN = 2 , logbase = 10, na.rm = T) %>% 
+        as.data.frame %>% 
+        imputePCA %>% 
+        .$completeObs
+  
+      pcamod <- PCA(tomod, scale.unit = T, graph = F)
+
+      # ggord
+      p1 <- ggord(pcamod, vec_ext = 6, alpha = 0.5, size = data$Lat, txt = 4, arrow = 0.2, repel = F, coord_fix = F, labcol = 'tomato1', veccol = 'tomato1', sizelab = 'Latitude') + 
+        mythm2 +
+        ggtitle(qrt)+ 
+        scale_size(range = c(0.3, 1.5))
+  
+      # explained variance by dimensions
+      p2 <- pcamod %>% 
+        .$eig %>% 
+        data.frame %>% 
+        rownames_to_column() %>%
+        rename(vrs = percentage.of.variance) %>% 
+        mutate(rowname = gsub('comp\\s', '', rowname)) %>% 
+        # .[1:3, ] %>% 
+        ggplot(aes(x = rowname, y = vrs, fill = vrs)) + 
+        geom_bar(stat = 'identity') + 
+        labs(x = 'Dimension', y = '% variance') + 
+        scale_y_continuous(limits = c(0, dimymax)) + 
+        scale_fill_gradient(limits = c(0, dimymax), low = 'tomato1', high = 'lightgreen', guide = F) + 
+        ggtitle(qrt) + 
+        mythm2
+    
+      out <- list(p1, p2)
+      
+      return(out)
+      
+    })
+  ) %>% 
+  pull(plo)
+
+grid.arrange(
+  arrangeGrob(
+    p1, pcamodgrp[[3]][[1]], pcamodgrp[[4]][[1]], pcamodgrp[[1]][[1]], pcamodgrp[[2]][[1]],
+    ncol = 1
+  ),
+  arrangeGrob(
+    p1exp, pcamodgrp[[3]][[2]], pcamodgrp[[4]][[2]], pcamodgrp[[1]][[2]], pcamodgrp[[2]][[2]],
+    ncol = 1
+  ) ,
+  ncol = 2, widths = c(1, 0.8)
 )
 
 ```
